@@ -25,7 +25,9 @@ jobs:
             server_exe: build/crux_server
             crux_exe:  build/crux
           - name: Windows (MSVC)
-            os: windows-latest
+            # Pin to windows-2022 — `windows-latest` moved to a newer image
+            # where CMake's "Visual Studio 17 2022" generator can't find VS.
+            os: windows-2022
             cmake_args: -G "Visual Studio 17 2022" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             exe_dir: build/Release
             server_exe: build/Release/crux_server.exe

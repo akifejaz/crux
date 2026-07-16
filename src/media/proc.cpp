@@ -20,6 +20,7 @@
 #  include <signal.h>
 #  include <spawn.h>
 #  include <sys/wait.h>
+#  include <time.h>       // clock_gettime, nanosleep, CLOCK_MONOTONIC, struct timespec
 #  include <unistd.h>
 extern char** environ;
 #endif
