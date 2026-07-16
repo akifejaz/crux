@@ -10,7 +10,7 @@
 #include <sstream>
 #include <string>
 
-namespace ytshorts::media {
+namespace crux::media {
 
 std::vector<SilenceWindow> detect_silences(const std::string& source_file,
                                            double center_sec,
@@ -76,4 +76,4 @@ double snap_to_silence(double t, const std::vector<SilenceWindow>& silences, dou
     return t;
 }
 
-} // namespace ytshorts::media
+} // namespace crux::media

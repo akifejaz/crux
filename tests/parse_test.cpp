@@ -18,11 +18,11 @@ std::string read_file(const std::string& path) {
 }
 
 TEST_CASE("parse_ytdlp_json: full sample with heatmap + chapters") {
-    auto path = fs::path(YTSHORTS_FIXTURES_DIR) / "sample_ytdlp.json";
+    auto path = fs::path(CRUX_FIXTURES_DIR) / "sample_ytdlp.json";
     auto text = read_file(path.string());
     REQUIRE(!text.empty());
 
-    auto r = ytshorts::fetch::parse_ytdlp_json(text);
+    auto r = crux::fetch::parse_ytdlp_json(text);
     CHECK(r.video.id == "iIY9fPgY5wM");
     CHECK(r.video.title.find("WORLD CUP") != std::string::npos);
     CHECK(r.video.duration_sec == doctest::Approx(1201.0));
@@ -40,15 +40,15 @@ TEST_CASE("parse_ytdlp_json: full sample with heatmap + chapters") {
 }
 
 TEST_CASE("parse_ytdlp_json: absent heatmap") {
-    auto path = fs::path(YTSHORTS_FIXTURES_DIR) / "no_heatmap.json";
+    auto path = fs::path(CRUX_FIXTURES_DIR) / "no_heatmap.json";
     auto text = read_file(path.string());
-    auto r = ytshorts::fetch::parse_ytdlp_json(text);
+    auto r = crux::fetch::parse_ytdlp_json(text);
     CHECK(r.video.id == "ycPr5-27vSI");
     CHECK(!r.heatmap.has_value());
     CHECK(r.chapters.empty());
 }
 
 TEST_CASE("parse_ytdlp_json: bad JSON throws") {
-    CHECK_THROWS_AS(ytshorts::fetch::parse_ytdlp_json("{ not json"),
+    CHECK_THROWS_AS(crux::fetch::parse_ytdlp_json("{ not json"),
                     std::exception);
 }

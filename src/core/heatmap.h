@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace ytshorts {
+namespace crux {
 
 // YouTube heatmap is always 100 bins (FINDINGS §3.1). We enforce that here.
 inline constexpr std::size_t kBinCount = 100;
@@ -69,4 +69,4 @@ struct Plan {
     Quality quality;
 };
 
-} // namespace ytshorts
+} // namespace crux

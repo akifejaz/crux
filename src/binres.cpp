@@ -9,7 +9,7 @@
 
 namespace fs = std::filesystem;
 
-namespace ytshorts::binres {
+namespace crux::binres {
 
 namespace {
 
@@ -113,13 +113,13 @@ std::string resolve(std::string_view base,
 } // namespace
 
 std::string resolve_ytdlp(const std::optional<std::string>& override_path) {
-    return resolve("yt-dlp", "YTSHORTS_YTDLP", override_path);
+    return resolve("yt-dlp", "CRUX_YTDLP", override_path);
 }
 std::string resolve_ffmpeg(const std::optional<std::string>& override_path) {
-    return resolve("ffmpeg", "YTSHORTS_FFMPEG", override_path);
+    return resolve("ffmpeg", "CRUX_FFMPEG", override_path);
 }
 std::string resolve_ffprobe(const std::optional<std::string>& override_path) {
-    return resolve("ffprobe", "YTSHORTS_FFPROBE", override_path);
+    return resolve("ffprobe", "CRUX_FFPROBE", override_path);
 }
 
-} // namespace ytshorts::binres
+} // namespace crux::binres

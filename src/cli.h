@@ -2,7 +2,7 @@
 
 #include "config.h"
 
-namespace ytshorts {
+namespace crux {
 
 struct CliResult {
     int exit_code = 0;   // if non-zero, main exits with this (e.g. --help handled)
@@ -13,7 +13,7 @@ struct CliResult {
 // Parses argv. On --help/--version, prints and returns should_run=false.
 CliResult parse_cli(int argc, char** argv);
 
-// Semantic version of the ytshorts binary (compile-time).
+// Semantic version of the crux binary (compile-time).
 const char* version_string();
 
-} // namespace ytshorts
+} // namespace crux

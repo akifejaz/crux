@@ -5,7 +5,7 @@
 #include <optional>
 #include <string>
 
-namespace ytshorts::binres {
+namespace crux::binres {
 
 // Resolve yt-dlp. Returns absolute (or bare, if PATH-resolved) path.
 // Throws std::runtime_error if not found.
@@ -17,4 +17,4 @@ std::string resolve_ffmpeg(const std::optional<std::string>& override_path);
 // Also used for ffprobe if we need it later.
 std::string resolve_ffprobe(const std::optional<std::string>& override_path);
 
-} // namespace ytshorts::binres
+} // namespace crux::binres

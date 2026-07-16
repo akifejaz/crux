@@ -6,7 +6,7 @@
 
 #include <string>
 
-namespace ytshorts::media {
+namespace crux::media {
 
 // Cuts a single clip out of the downloaded source and writes it to `out_file`.
 // - 916blur: 1080x1920 blurred-background + fitted foreground (PLAN §5).
@@ -20,4 +20,4 @@ void cut_clip(const std::string& source_file,
               const Config& cfg,
               const std::string& out_file);
 
-} // namespace ytshorts::media
+} // namespace crux::media

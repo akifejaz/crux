@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace ytshorts::fetch {
+namespace crux::fetch {
 
 namespace {
 
@@ -65,4 +65,4 @@ std::unique_ptr<IHeatmapSource> make_native_source() {
     throw std::runtime_error("native heatmap source not implemented until M5");
 }
 
-} // namespace ytshorts::fetch
+} // namespace crux::fetch

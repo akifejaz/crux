@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace ytshorts::planner {
+namespace crux::planner {
 
 namespace {
 
@@ -114,4 +114,4 @@ Plan plan(const detector::DetectResult& d,
     return p;
 }
 
-} // namespace ytshorts::planner
+} // namespace crux::planner

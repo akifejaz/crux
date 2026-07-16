@@ -1,11 +1,11 @@
-// Runtime configuration for ytshorts. Populated by CLI parser (see cli.h).
+// Runtime configuration for crux. Populated by CLI parser (see cli.h).
 // Defaults in this file mirror PLAN.md §4 / §6.
 #pragma once
 
 #include <optional>
 #include <string>
 
-namespace ytshorts {
+namespace crux {
 
 enum class Format {
     Blur916,  // 1080x1920 blurred-bars (default)
@@ -53,4 +53,4 @@ struct Config {
     std::optional<std::string> ffmpeg_path;
 };
 
-} // namespace ytshorts
+} // namespace crux

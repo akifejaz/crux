@@ -6,7 +6,7 @@
 #include <numeric>
 #include <vector>
 
-namespace ytshorts::detector {
+namespace crux::detector {
 
 namespace {
 
@@ -73,6 +73,13 @@ DetectResult detect(const Heatmap& h, double duration_sec, const Config& cfg) {
     // Step 4 — GATE.
     res.quality.flat = res.quality.max_over_median < kFlatMaxOverMedian;
 
+    // Guard: essentially-zero profile. If the tallest candidate bin barely
+    // registers, there's no useful spike to find — bailing here avoids the
+    // T==0 degenerate where `Hs[i] >= T` is trivially true for every bin
+    // and the detector "finds" a spurious region covering the entire video.
+    constexpr double kMinPeakForDetection = 1e-6;
+    if (mx < kMinPeakForDetection) return res;
+
     // Step 5 — THRESH.
     const double T = std::max(med + kThreshK * sd, kThreshFracOfMax * mx);
     const double Tlow = kHysteresisFrac * T;
@@ -125,4 +132,4 @@ DetectResult detect(const Heatmap& h, double duration_sec, const Config& cfg) {
     return res;
 }
 
-} // namespace ytshorts::detector
+} // namespace crux::detector

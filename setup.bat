@@ -1,6 +1,6 @@
 @echo off
 REM =====================================================================
-REM ytshorts — first-run setup for Windows
+REM crux -- first-run setup for Windows
 REM   1) checks prerequisites (cmake, MSVC)
 REM   2) downloads yt-dlp.exe + ffmpeg.exe into third_party\bin\
 REM   3) configures and builds with CMake + Visual Studio
@@ -14,7 +14,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 echo.
-echo === ytshorts setup ===
+echo === crux setup ===
 echo Working directory: %CD%
 echo.
 
@@ -124,7 +124,7 @@ if defined VCPKG_ROOT (
 set "GEN_ARGS=-G ""Visual Studio 17 2022"" -A x64"
 where cl >nul 2>&1
 if errorlevel 1 (
-    REM Not inside a VS Developer prompt. That is OK — CMake will invoke
+    REM Not inside a VS Developer prompt. That is OK -- CMake will invoke
     REM MSBuild via the VS generator. Detect whether VS 2022 is installed.
     if not exist "%ProgramFiles%\Microsoft Visual Studio\2022" (
         if not exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2022" (
@@ -152,29 +152,29 @@ if errorlevel 1 (
 REM ---------------------------------------------------------------------
 REM Locate the built executable
 REM ---------------------------------------------------------------------
-set "YTSHORTS_EXE="
-if exist "build\Release\ytshorts.exe" set "YTSHORTS_EXE=build\Release\ytshorts.exe"
-if not defined YTSHORTS_EXE if exist "build\ytshorts.exe" set "YTSHORTS_EXE=build\ytshorts.exe"
-if not defined YTSHORTS_EXE (
-    echo [error] Build succeeded but ytshorts.exe was not found.
+set "CRUX_EXE="
+if exist "build\Release\crux.exe" set "CRUX_EXE=build\Release\crux.exe"
+if not defined CRUX_EXE if exist "build\crux.exe" set "CRUX_EXE=build\crux.exe"
+if not defined CRUX_EXE (
+    echo [error] Build succeeded but crux.exe was not found.
     exit /b 1
 )
 
 echo.
 echo === smoke test ===
-"%YTSHORTS_EXE%" --version
+"%CRUX_EXE%" --version
 if errorlevel 1 (
     echo [warn] --version returned non-zero.
 )
 
 echo.
 echo === run tests ===
-if exist "build\Release\ytshorts_tests.exe" (
-    "build\Release\ytshorts_tests.exe"
-) else if exist "build\ytshorts_tests.exe" (
-    "build\ytshorts_tests.exe"
+if exist "build\Release\crux_tests.exe" (
+    "build\Release\crux_tests.exe"
+) else if exist "build\crux_tests.exe" (
+    "build\crux_tests.exe"
 ) else (
-    echo [warn] ytshorts_tests.exe not found — skipping.
+    echo [warn] crux_tests.exe not found -- skipping.
 )
 
 echo.

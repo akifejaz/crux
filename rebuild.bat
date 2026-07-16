@@ -1,5 +1,5 @@
 @echo off
-REM Incremental rebuild — use this after editing source files.
+REM Incremental rebuild -- use this after editing source files.
 REM Usage:
 REM   rebuild.bat            (Release, default)
 REM   rebuild.bat Debug

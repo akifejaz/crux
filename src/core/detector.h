@@ -5,7 +5,7 @@
 
 #include <vector>
 
-namespace ytshorts::detector {
+namespace crux::detector {
 
 struct Region {
     int start_bin = 0;
@@ -26,4 +26,4 @@ DetectResult detect(const Heatmap& h,
                     double duration_sec,
                     const Config& cfg);
 
-} // namespace ytshorts::detector
+} // namespace crux::detector

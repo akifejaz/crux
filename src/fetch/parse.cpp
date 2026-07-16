@@ -7,7 +7,7 @@
 
 using json = nlohmann::json;
 
-namespace ytshorts::fetch {
+namespace crux::fetch {
 
 namespace {
 
@@ -81,4 +81,4 @@ FetchResult parse_ytdlp_json(const std::string& text) {
     return r;
 }
 
-} // namespace ytshorts::fetch
+} // namespace crux::fetch

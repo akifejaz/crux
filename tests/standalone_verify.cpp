@@ -18,8 +18,8 @@
 #include <string>
 #include <vector>
 
-using ytshorts::Heatmap;
-using ytshorts::Config;
+using crux::Heatmap;
+using crux::Config;
 
 namespace {
 
@@ -34,7 +34,7 @@ struct Fx {
 Heatmap to_h(const Fx& f) {
     Heatmap h;
     h.bin_seconds = f.bin_ms / 1000.0;
-    for (std::size_t i = 0; i < ytshorts::kBinCount; ++i) {
+    for (std::size_t i = 0; i < crux::kBinCount; ++i) {
         h.bins[i].start_sec = i * h.bin_seconds;
         h.bins[i].end_sec   = (i + 1) * h.bin_seconds;
         h.bins[i].value     = f.scores[i] / f.scale;
@@ -91,7 +91,7 @@ int main() {
                 mrbeast_squid.len_sec, mrbeast_squid.bin_ms / 1000.0);
     {
         auto h = to_h(mrbeast_squid);
-        auto det = ytshorts::detector::detect(h, mrbeast_squid.len_sec, cfg());
+        auto det = crux::detector::detect(h, mrbeast_squid.len_sec, cfg());
         bool h23=false, h49=false;
         for (auto& r : det.regions) {
             if (r.start_bin <= 23 && r.end_bin >= 23) h23 = true;
@@ -100,7 +100,7 @@ int main() {
         check(h23, "region covers bin 23 (0.41 peak)");
         check(h49, "region covers bin 49 (0.47 peak)");
         check(!det.quality.flat, "not flagged flat");
-        auto p = ytshorts::planner::plan(det, h, mrbeast_squid.len_sec, {}, cfg());
+        auto p = crux::planner::plan(det, h, mrbeast_squid.len_sec, {}, cfg());
         for (auto& c : p.clips) {
             check(c.start_sec >= 0.0, "clip start >= 0");
             check(c.end_sec <= mrbeast_squid.len_sec + 0.01, "clip end <= duration");
@@ -113,11 +113,11 @@ int main() {
                 dream.len_sec, dream.bin_ms / 1000.0);
     {
         auto h = to_h(dream);
-        auto det = ytshorts::detector::detect(h, dream.len_sec, cfg());
+        auto det = crux::detector::detect(h, dream.len_sec, cfg());
         bool end_kept = false;
         for (auto& r : det.regions) if (r.end_bin >= 96) end_kept = true;
         check(end_kept, "end spike (bins 96..99) kept");
-        auto p = ytshorts::planner::plan(det, h, dream.len_sec, {}, cfg());
+        auto p = crux::planner::plan(det, h, dream.len_sec, {}, cfg());
         for (auto& c : p.clips)
             check(c.end_sec <= dream.len_sec + 0.01, "end clip clamped inside duration");
     }
@@ -126,7 +126,7 @@ int main() {
                 ted.len_sec, ted.bin_ms / 1000.0);
     {
         auto h = to_h(ted);
-        auto det = ytshorts::detector::detect(h, ted.len_sec, cfg());
+        auto det = crux::detector::detect(h, ted.len_sec, cfg());
         bool has7 = false;
         for (auto& r : det.regions)
             if (r.start_bin <= 7 && r.end_bin >= 7) has7 = true;
@@ -138,12 +138,12 @@ int main() {
                 sidemen.len_sec, sidemen.bin_ms / 1000.0);
     {
         auto h = to_h(sidemen);
-        auto det = ytshorts::detector::detect(h, sidemen.len_sec, cfg());
+        auto det = crux::detector::detect(h, sidemen.len_sec, cfg());
         bool has59 = false;
         for (auto& r : det.regions)
             if (r.start_bin <= 59 && r.end_bin >= 59) has59 = true;
         check(has59, "region covers bin 59 (peak 1.00)");
-        auto p = ytshorts::planner::plan(det, h, sidemen.len_sec, {}, cfg());
+        auto p = crux::planner::plan(det, h, sidemen.len_sec, {}, cfg());
         bool top_at_59 = false;
         for (auto& c : p.clips) if (c.peak_bin == 59) top_at_59 = true;
         check(top_at_59, "planner selects bin-59 peak");
@@ -153,7 +153,7 @@ int main() {
                 boblazar.len_sec, boblazar.bin_ms / 1000.0);
     {
         auto h = to_h(boblazar);
-        auto det = ytshorts::detector::detect(h, boblazar.len_sec, cfg());
+        auto det = crux::detector::detect(h, boblazar.len_sec, cfg());
         bool has44 = false, has99 = false;
         for (auto& r : det.regions) {
             if (r.start_bin <= 44 && r.end_bin >= 44) has44 = true;
@@ -161,7 +161,7 @@ int main() {
         }
         check(has44, "region covers bin 44 (0.444 peak)");
         check(has99, "end spike kept (bin 99)");
-        auto p = ytshorts::planner::plan(det, h, boblazar.len_sec, {}, cfg());
+        auto p = crux::planner::plan(det, h, boblazar.len_sec, {}, cfg());
         for (auto& c : p.clips)
             check(c.end_sec - c.start_sec <= 90.01, "clip length capped at 90s");
     }
@@ -169,19 +169,19 @@ int main() {
     std::printf("T6: Synthetic flat-high (music-like)\n");
     {
         Heatmap h; h.bin_seconds = 2.8;
-        for (std::size_t i = 0; i < ytshorts::kBinCount; ++i) {
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
             h.bins[i].start_sec = i * 2.8;
             h.bins[i].end_sec   = (i + 1) * 2.8;
             h.bins[i].value     = 0.65;
         }
-        auto det = ytshorts::detector::detect(h, 280.0, cfg());
+        auto det = crux::detector::detect(h, 280.0, cfg());
         check(det.quality.flat, "flat profile flagged (max/median < 2)");
     }
 
     std::printf("T7a: Very short video (<=180s) covers full duration\n");
     {
         Heatmap h; h.bin_seconds = 1.8;
-        for (std::size_t i = 0; i < ytshorts::kBinCount; ++i) {
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
             h.bins[i].start_sec = i * 1.8;
             h.bins[i].end_sec   = (i + 1) * 1.8;
             h.bins[i].value     = 0.10;
@@ -189,8 +189,8 @@ int main() {
         double peak[] = {0.55, 0.70, 0.85, 0.95, 1.00, 0.90, 0.80, 0.70};
         for (int k = 0; k < 8; ++k) h.bins[71 + k].value = peak[k];
         double dur = 180.0;
-        auto det = ytshorts::detector::detect(h, dur, cfg());
-        auto p = ytshorts::planner::plan(det, h, dur, {}, cfg());
+        auto det = crux::detector::detect(h, dur, cfg());
+        auto p = crux::planner::plan(det, h, dur, {}, cfg());
         check(p.clips.size() == 1, "one clip");
         if (!p.clips.empty())
             check(std::fabs(p.clips[0].end_sec - dur) < 0.001, "clip covers full duration");
@@ -199,7 +199,7 @@ int main() {
     std::printf("T7b: Karate-Kid-like (4:02, single peak)\n");
     {
         Heatmap h; h.bin_seconds = 2.4;
-        for (std::size_t i = 0; i < ytshorts::kBinCount; ++i) {
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
             h.bins[i].start_sec = i * 2.4;
             h.bins[i].end_sec   = (i + 1) * 2.4;
             h.bins[i].value     = 0.10;
@@ -207,8 +207,8 @@ int main() {
         double peak[] = {0.55, 0.70, 0.85, 0.95, 1.00, 0.90, 0.80, 0.70};
         for (int k = 0; k < 8; ++k) h.bins[71 + k].value = peak[k];
         double dur = 240.0;
-        auto det = ytshorts::detector::detect(h, dur, cfg());
-        auto p = ytshorts::planner::plan(det, h, dur, {}, cfg());
+        auto det = crux::detector::detect(h, dur, cfg());
+        auto p = crux::planner::plan(det, h, dur, {}, cfg());
         check(p.clips.size() == 1, "single clip");
         if (!p.clips.empty()) {
             const auto& c = p.clips[0];
@@ -220,16 +220,100 @@ int main() {
     std::printf("T8: min-gap enforcement (3h video, two peaks)\n");
     {
         Heatmap h; h.bin_seconds = 108.0;
-        for (std::size_t i = 0; i < ytshorts::kBinCount; ++i) {
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
             h.bins[i].start_sec = i * 108.0;
             h.bins[i].end_sec   = (i + 1) * 108.0;
             h.bins[i].value     = 0.05;
         }
         h.bins[10].value = 0.9;
         h.bins[80].value = 0.85;
-        auto det = ytshorts::detector::detect(h, 10800.0, cfg());
-        auto p = ytshorts::planner::plan(det, h, 10800.0, {}, cfg());
+        auto det = crux::detector::detect(h, 10800.0, cfg());
+        auto p = crux::planner::plan(det, h, 10800.0, {}, cfg());
         check(p.clips.size() == 2, "two distinct clips");
+    }
+
+    std::printf("T9: all-zero heatmap yields no regions (and doesn't crash)\n");
+    {
+        Heatmap h; h.bin_seconds = 12.0;
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
+            h.bins[i].start_sec = i * 12.0;
+            h.bins[i].end_sec   = (i + 1) * 12.0;
+            h.bins[i].value     = 0.0;
+        }
+        auto det = crux::detector::detect(h, 1200.0, cfg());
+        auto p   = crux::planner::plan(det, h, 1200.0, {}, cfg());
+        check(det.regions.empty(), "no regions detected");
+        check(p.clips.empty(),      "no clips planned");
+    }
+
+    std::printf("T10: single-bin spike is preserved\n");
+    {
+        Heatmap h; h.bin_seconds = 12.0;
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
+            h.bins[i].start_sec = i * 12.0;
+            h.bins[i].end_sec   = (i + 1) * 12.0;
+            h.bins[i].value     = 0.02;
+        }
+        h.bins[42].value = 1.0;
+        auto det = crux::detector::detect(h, 1200.0, cfg());
+        bool has42 = false;
+        for (auto& r : det.regions)
+            if (r.start_bin <= 42 && r.end_bin >= 42) has42 = true;
+        check(has42, "region covers bin 42");
+    }
+
+    std::printf("T11: --keep-intro keeps bin 0 as candidate\n");
+    {
+        Heatmap h; h.bin_seconds = 12.0;
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
+            h.bins[i].start_sec = i * 12.0;
+            h.bins[i].end_sec   = (i + 1) * 12.0;
+            h.bins[i].value     = 0.05;
+        }
+        h.bins[0].value = 1.0;
+        h.bins[1].value = 0.9;
+        h.bins[2].value = 0.4;
+        Config c; c.max_clips = 6; c.keep_intro = true;
+        auto det = crux::detector::detect(h, 1200.0, c);
+        bool intro_kept = false;
+        for (auto& r : det.regions)
+            if (r.start_bin == 0 || r.start_bin == 1) intro_kept = true;
+        check(intro_kept, "intro region kept with --keep-intro");
+    }
+
+    std::printf("T12: adjacent tied peaks merge into ONE region\n");
+    {
+        Heatmap h; h.bin_seconds = 12.0;
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
+            h.bins[i].start_sec = i * 12.0;
+            h.bins[i].end_sec   = (i + 1) * 12.0;
+            h.bins[i].value     = 0.05;
+        }
+        h.bins[50].value = 0.9;
+        h.bins[51].value = 0.9;
+        h.bins[52].value = 0.9;
+        auto det = crux::detector::detect(h, 1200.0, cfg());
+        int matches = 0;
+        for (auto& r : det.regions)
+            if (r.start_bin <= 50 && r.end_bin >= 52) ++matches;
+        check(matches == 1, "exactly one merged region");
+    }
+
+    std::printf("T13: quality.max_over_median is monotonic in peak height\n");
+    {
+        Heatmap h1; h1.bin_seconds = 12.0;
+        Heatmap h2; h2.bin_seconds = 12.0;
+        for (std::size_t i = 0; i < crux::kBinCount; ++i) {
+            h1.bins[i].start_sec = h2.bins[i].start_sec = i * 12.0;
+            h1.bins[i].end_sec   = h2.bins[i].end_sec   = (i + 1) * 12.0;
+            h1.bins[i].value = h2.bins[i].value = 0.10;
+        }
+        h1.bins[50].value = 0.30;
+        h2.bins[50].value = 0.90;
+        auto d1 = crux::detector::detect(h1, 1200.0, cfg());
+        auto d2 = crux::detector::detect(h2, 1200.0, cfg());
+        check(d2.quality.max_over_median > d1.quality.max_over_median,
+              "taller peak → higher max/median");
     }
 
     std::printf("\n=== %s (%d failure%s) ===\n",

@@ -1,11 +1,12 @@
 {
-  "name": "ytshorts",
+  "name": "crux",
   "version-string": "0.1.0",
-  "description": "Most-Replayed → YouTube Shorts extractor (C++)",
+  "description": "crux — turn long videos into short-form clips using the peaks viewers actually rewatched.",
   "dependencies": [
     "cli11",
     "nlohmann-json",
     "spdlog",
-    "doctest"
+    "doctest",
+    "cpp-httplib"
   ]
 }

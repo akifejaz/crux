@@ -24,7 +24,7 @@
 extern char** environ;
 #endif
 
-namespace ytshorts::proc {
+namespace crux::proc {
 
 namespace {
 
@@ -377,4 +377,4 @@ RunResult check_run(const std::string& exe,
     return r;
 }
 
-} // namespace ytshorts::proc
+} // namespace crux::proc

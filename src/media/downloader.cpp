@@ -18,7 +18,7 @@
 
 namespace fs = std::filesystem;
 
-namespace ytshorts::media {
+namespace crux::media {
 
 namespace {
 
@@ -208,4 +208,4 @@ DownloadResult download(const std::string& url,
     return out;
 }
 
-} // namespace ytshorts::media
+} // namespace crux::media

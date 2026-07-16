@@ -4,17 +4,17 @@
 #include <cstdio>
 #include <string>
 
-namespace ytshorts {
+namespace crux {
 
 const char* version_string() {
-    return "ytshorts 0.1.0";
+    return "crux 0.1.0";
 }
 
 CliResult parse_cli(int argc, char** argv) {
     CliResult r{};
     Config& c = r.config;
 
-    CLI::App app{"ytshorts — YouTube Most-Replayed → Shorts extractor", "ytshorts"};
+    CLI::App app{"crux — cut the most-replayed moments out of a YouTube video", "crux"};
     app.set_version_flag("--version", version_string());
     app.set_help_flag("-h,--help", "Show help");
 
@@ -88,4 +88,4 @@ CliResult parse_cli(int argc, char** argv) {
     return r;
 }
 
-} // namespace ytshorts
+} // namespace crux

@@ -19,7 +19,7 @@
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
-namespace ytshorts {
+namespace crux {
 
 namespace {
 
@@ -157,7 +157,7 @@ int run_pipeline(const Config& cfg_in) {
     // Download + cut.
     std::string work_dir = (fs::path(cfg.out_dir) / "work").string();
     media::DownloadResult dl;
-    say("Downloading source video via yt-dlp (%.0fs total) — this can take a moment",
+    say("Downloading source video via yt-dlp (%.0fs total)",
         fr.video.duration_sec);
     try {
         dl = media::download(fr.video.url.empty() ? cfg.url_or_id : fr.video.url,
@@ -204,4 +204,4 @@ int run_pipeline(const Config& cfg_in) {
     return 0;
 }
 
-} // namespace ytshorts
+} // namespace crux

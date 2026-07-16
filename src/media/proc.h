@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace ytshorts::proc {
+namespace crux::proc {
 
 struct RunResult {
     int exit_code = -1;
@@ -18,7 +18,15 @@ struct RunResult {
 };
 
 struct RunOptions {
-    std::optional<int> timeout_ms;    // std::nullopt = no timeout
+    // Wall-clock timeout. std::nullopt = wait forever.
+    //
+    // NOTE: on Windows the pipe-capture path drains ReadFile synchronously,
+    // which blocks until the child closes its stdout. So a *silent* child
+    // (one that never writes to stdout/stderr, like `sleep`) can't be
+    // cancelled mid-wait when running in pipe mode. Timeout is reliable in
+    // redirect_output_to and inherit_stdout modes. If you need to cap a
+    // silent child in pipe mode, add a threaded drain (v2 work).
+    std::optional<int> timeout_ms;
     bool capture_stdout = true;
     bool capture_stderr = true;
     bool merge_streams = false;       // if true, stderr routed into stdout_text
@@ -45,4 +53,4 @@ RunResult check_run(const std::string& exe,
                     const std::vector<std::string>& args,
                     const RunOptions& opts = {});
 
-} // namespace ytshorts::proc
+} // namespace crux::proc

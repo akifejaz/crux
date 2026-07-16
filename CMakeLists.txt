@@ -8,7 +8,7 @@ if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         CACHE STRING "Vcpkg toolchain file")
 endif()
 
-project(ytshorts LANGUAGES CXX VERSION 0.1.0)
+project(crux LANGUAGES CXX VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -87,7 +87,7 @@ endif()
 # ---------------------------------------------------------------------------
 # Core library (pure functions, no I/O — unit-testable)
 # ---------------------------------------------------------------------------
-add_library(ytshorts_core STATIC
+add_library(crux_core STATIC
     src/core/detector.cpp
     src/core/planner.cpp
     src/fetch/ytdlp_source.cpp
@@ -101,8 +101,8 @@ add_library(ytshorts_core STATIC
     src/cli.cpp
     src/binres.cpp
 )
-target_include_directories(ytshorts_core PUBLIC src)
-target_link_libraries(ytshorts_core PUBLIC
+target_include_directories(crux_core PUBLIC src)
+target_link_libraries(crux_core PUBLIC
     CLI11::CLI11
     nlohmann_json::nlohmann_json
     spdlog::spdlog
@@ -111,34 +111,49 @@ target_link_libraries(ytshorts_core PUBLIC
 # ---------------------------------------------------------------------------
 # Executables
 # ---------------------------------------------------------------------------
-add_executable(ytshorts src/main.cpp)
-target_link_libraries(ytshorts PRIVATE ytshorts_core)
+add_executable(crux src/main.cpp)
+target_link_libraries(crux PRIVATE crux_core)
 
 # Local dashboard server. Small and standalone — links against the media/proc
-# subprocess helper so it can spawn ytshorts.exe with output redirected to a
+# subprocess helper so it can spawn crux.exe with output redirected to a
 # file that the HTTP endpoints tail.
-add_executable(ytshorts_server src/server/server.cpp)
-target_link_libraries(ytshorts_server PRIVATE
-    ytshorts_core
+add_executable(crux_server src/server/server.cpp)
+target_link_libraries(crux_server PRIVATE
+    crux_core
     httplib::httplib
     nlohmann_json::nlohmann_json
 )
 if(WIN32)
-    target_link_libraries(ytshorts_server PRIVATE ws2_32)
+    target_link_libraries(crux_server PRIVATE ws2_32)
 endif()
 
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 enable_testing()
-add_executable(ytshorts_tests
+add_executable(crux_tests
     tests/main_test.cpp
     tests/parse_test.cpp
+    tests/parse_edge_test.cpp
     tests/detector_test.cpp
+    tests/detector_extra_test.cpp
     tests/planner_test.cpp
+    tests/cli_test.cpp
+    tests/manifest_test.cpp
+    tests/proc_test.cpp
 )
-target_link_libraries(ytshorts_tests PRIVATE ytshorts_core doctest::doctest)
-target_compile_definitions(ytshorts_tests PRIVATE
-    YTSHORTS_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
+target_link_libraries(crux_tests PRIVATE crux_core doctest::doctest)
+target_compile_definitions(crux_tests PRIVATE
+    CRUX_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures"
+    CRUX_CMAKE_COMMAND="${CMAKE_COMMAND}"
 )
-add_test(NAME ytshorts_tests COMMAND ytshorts_tests)
+add_test(NAME crux_tests COMMAND crux_tests)
+
+# Standalone verifier — no external deps, buildable with plain g++.
+# Useful in sandboxes and as a quick CI smoke.
+add_executable(crux_standalone_verify
+    tests/standalone_verify.cpp
+    src/core/detector.cpp
+    src/core/planner.cpp)
+target_include_directories(crux_standalone_verify PRIVATE src)
+add_test(NAME crux_standalone_verify COMMAND crux_standalone_verify)

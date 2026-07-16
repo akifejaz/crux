@@ -6,7 +6,7 @@
 
 #include <memory>
 
-namespace ytshorts::fetch {
+namespace crux::fetch {
 
 class IHeatmapSource {
 public:
@@ -19,4 +19,4 @@ public:
 std::unique_ptr<IHeatmapSource> make_ytdlp_source();
 std::unique_ptr<IHeatmapSource> make_native_source();   // M5
 
-} // namespace ytshorts::fetch
+} // namespace crux::fetch

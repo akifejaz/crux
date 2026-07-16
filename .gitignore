@@ -1,85 +1,55 @@
+# =====================================================================
+# crux — .gitignore
+# =====================================================================
+# What ships in the repo:  source, docs, scripts, dashboard/, tests/
+# What DOES NOT ship:      build outputs, downloaded binaries, generated
+#                          clips, IDE folders, logs, OS cruft, secrets.
+# =====================================================================
+
+
 # ---------------------------------------------------------------------
-# Build outputs
+# Build outputs (CMake, MSBuild, Ninja, Make)
 # ---------------------------------------------------------------------
 build/
 build-*/
 cmake-build-*/
-out/
+out/build/
+out/install/
+Debug/
+Release/
+x64/
+x86/
+Win32/
 
-# Downloaded third-party binaries (yt-dlp, ffmpeg, ffprobe)
-third_party/bin/
-third_party/**/downloaded/
-*.zip
-*.7z
-*.tar.gz
-
-# CMake local overrides
-CMakeUserPresets.json
+# ---------------------------------------------------------------------
+# CMake internals — in case someone runs cmake at the repo root
+# ---------------------------------------------------------------------
 CMakeCache.txt
 CMakeFiles/
+CMakeUserPresets.json
+CMakeScripts/
 cmake_install.cmake
-_deps/
+CTestTestfile.cmake
+Testing/
 compile_commands.json
+_deps/
+install_manifest.txt
+CPackConfig.cmake
+CPackSourceConfig.cmake
 
 # ---------------------------------------------------------------------
-# IDE / editor
-# ---------------------------------------------------------------------
-.vs/
-.vscode/
-.idea/
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-*.swp
-*.swo
-*~
-.cache/
-
-# ---------------------------------------------------------------------
-# Compiled artifacts
-# ---------------------------------------------------------------------
-*.o
-*.obj
-*.exe
-*.dll
-*.so
-*.so.*
-*.dylib
-*.a
-*.lib
-*.pdb
-*.ilk
-*.exp
-*.idb
-*.ncb
-*.opendb
-*.opensdf
-*.sdf
-
-# ---------------------------------------------------------------------
-# Logs / temp
-# ---------------------------------------------------------------------
-*.log
-*.tmp
-*.bak
-run.log
-
-# ---------------------------------------------------------------------
-# OS junk
-# ---------------------------------------------------------------------
-.DS_Store
-Thumbs.db
-Desktop.ini
-$RECYCLE.BIN/
-
-# ---------------------------------------------------------------------
-# vcpkg local
+# vcpkg local installs (kept out; vcpkg.json describes what's needed)
 # ---------------------------------------------------------------------
 vcpkg_installed/
+vcpkg/downloads/
+vcpkg/buildtrees/
+vcpkg/packages/
 
 # ---------------------------------------------------------------------
-# Personal notes / scratch
+# Downloaded third-party binaries (yt-dlp, ffmpeg, ffprobe, archives)
+# setup.bat repopulates these.  Never commit them.
 # ---------------------------------------------------------------------
-scratch/
-notes.local.md
+third_party/
+!third_party/.
+
+out/

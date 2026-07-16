@@ -1,4 +1,4 @@
-// ytshorts_server — tiny local HTTP server that wraps the ytshorts CLI.
+// crux_server — tiny local HTTP server that wraps the crux CLI.
 //
 // Endpoints:
 //   GET  /                     — dashboard/index.html
@@ -82,9 +82,9 @@ std::string ymd_hms_id() {
 
 // ---------- Locate the CLI binary ----------
 
-std::string locate_ytshorts_exe(const std::optional<std::string>& override_path) {
+std::string locate_crux_exe(const std::optional<std::string>& override_path) {
     if (override_path && !override_path->empty()) return *override_path;
-    if (const char* env = std::getenv("YTSHORTS_EXE")) {
+    if (const char* env = std::getenv("CRUX_EXE")) {
         if (fs::exists(env)) return env;
     }
     // Look next to this server binary.
@@ -100,12 +100,12 @@ std::string locate_ytshorts_exe(const std::optional<std::string>& override_path)
 #endif
     const char* names[] = {
 #ifdef _WIN32
-        "ytshorts.exe",
-        "build/Release/ytshorts.exe",
-        "build/ytshorts.exe",
+        "crux.exe",
+        "build/Release/crux.exe",
+        "build/crux.exe",
 #else
-        "ytshorts",
-        "build/ytshorts",
+        "crux",
+        "build/crux",
 #endif
     };
     for (const char* n : names) {
@@ -116,9 +116,9 @@ std::string locate_ytshorts_exe(const std::optional<std::string>& override_path)
     }
     // Last resort: PATH.
 #ifdef _WIN32
-    return "ytshorts.exe";
+    return "crux.exe";
 #else
-    return "ytshorts";
+    return "crux";
 #endif
 }
 
@@ -174,7 +174,7 @@ void run_job(std::shared_ptr<Job> job, std::string exe) {
         ofs << "\n\n";
     }
 
-    ytshorts::proc::RunOptions opts;
+    crux::proc::RunOptions opts;
     opts.timeout_ms = 90 * 60 * 1000;   // 90 min hard cap
     opts.redirect_output_to = job->log_file.string();
     // The redirect option overrides these, but be explicit anyway.
@@ -187,7 +187,7 @@ void run_job(std::shared_ptr<Job> job, std::string exe) {
         // reopening the file for append AFTER the child writes its output:
         // actually the simplest thing is to skip the audit prefix entirely.
         // Re-write it here after the child exits so the log still shows both.
-        auto r = ytshorts::proc::run(exe, args, opts);
+        auto r = crux::proc::run(exe, args, opts);
         job->exit_code = r.exit_code;
     } catch (const std::exception& e) {
         std::ofstream ofs(job->log_file, std::ios::app);
@@ -262,9 +262,9 @@ int main(int argc, char** argv) {
         std::string a = argv[i];
         if      (a == "--port" && i + 1 < argc) port = std::atoi(argv[++i]);
         else if (a == "--host" && i + 1 < argc) host = argv[++i];
-        else if (a == "--ytshorts" && i + 1 < argc) exe_override = argv[++i];
+        else if (a == "--crux" && i + 1 < argc) exe_override = argv[++i];
         else if (a == "--help" || a == "-h") {
-            std::printf("ytshorts_server [--port N] [--host HOST] [--ytshorts PATH]\n");
+            std::printf("crux_server [--port N] [--host HOST] [--crux PATH]\n");
             return 0;
         }
     }
@@ -276,12 +276,12 @@ int main(int argc, char** argv) {
             "       Run this server from the project root.\n");
         return 1;
     }
-    std::string exe = locate_ytshorts_exe(exe_override);
+    std::string exe = locate_crux_exe(exe_override);
     if (!fs::exists(exe)) {
         std::fprintf(stderr,
-            "error: ytshorts binary not found at %s.\n"
+            "error: crux binary not found at %s.\n"
             "       Build it first (setup.bat / rebuild.bat), or pass "
-            "--ytshorts PATH.\n", exe.c_str());
+            "--crux PATH.\n", exe.c_str());
         return 1;
     }
 
@@ -449,16 +449,16 @@ int main(int argc, char** argv) {
     // Basic health / config info.
     svr.Get("/api/info", [exe, dashboard](const httplib::Request&, httplib::Response& res) {
         json r = {
-            {"ytshorts_exe", exe},
+            {"crux_exe", exe},
             {"dashboard_dir", dashboard.string()},
             {"cwd", fs::current_path().string()},
         };
         res.set_content(r.dump(), "application/json");
     });
 
-    std::printf("ytshorts dashboard ready — open http://%s:%d/ in your browser\n",
+    std::printf("crux dashboard ready — open http://%s:%d/ in your browser\n",
                 host.c_str(), port);
-    std::printf("(ytshorts binary: %s)\n(dashboard: %s)\n", exe.c_str(),
+    std::printf("(crux binary: %s)\n(dashboard: %s)\n", exe.c_str(),
                 dashboard.string().c_str());
     std::fflush(stdout);
 

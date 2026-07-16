@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace ytshorts::media {
+namespace crux::media {
 
 struct DownloadResult {
     // Absolute path to a single input file the cutter can seek into.
@@ -33,4 +33,4 @@ DownloadResult download(const std::string& url,
                         const Config& cfg,
                         const std::string& work_dir);
 
-} // namespace ytshorts::media
+} // namespace crux::media

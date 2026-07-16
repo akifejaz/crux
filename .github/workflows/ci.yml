@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu (g++)
+            os: ubuntu-latest
+            cmake_args: -DCMAKE_BUILD_TYPE=Release
+            exe_dir: build
+            server_exe: build/crux_server
+            crux_exe:  build/crux
+          - name: Windows (MSVC)
+            os: windows-latest
+            cmake_args: -G "Visual Studio 17 2022" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+            exe_dir: build/Release
+            server_exe: build/Release/crux_server.exe
+            crux_exe:  build/Release/crux.exe
+
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash    # Git Bash on Windows, /bin/bash on Linux — portable
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------
+      # Show the environment so failures are diagnosable from the log.
+      # ------------------------------------------------------------------
+      - name: Tool versions
+        run: |
+          echo "OS: $RUNNER_OS"
+          cmake --version | head -n1
+          git --version
+          curl --version | head -n1
+          if [ "$RUNNER_OS" = "Linux" ]; then g++ --version | head -n1; fi
+
+      # ------------------------------------------------------------------
+      # Cache the FetchContent dependency tree so re-runs don't re-clone
+      # CLI11 / nlohmann-json / spdlog / doctest / cpp-httplib every time.
+      # Keyed on the CMakeLists so bumping a dep version invalidates it.
+      # ------------------------------------------------------------------
+      - name: Cache _deps
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: ${{ matrix.os }}-deps-${{ hashFiles('CMakeLists.txt') }}
+          restore-keys: |
+            ${{ matrix.os }}-deps-
+
+      # ------------------------------------------------------------------
+      # Configure + build
+      # ------------------------------------------------------------------
+      - name: Configure
+        run: cmake -S . -B build ${{ matrix.cmake_args }}
+
+      - name: Build (Release)
+        run: cmake --build build --config Release --parallel
+
+      # ------------------------------------------------------------------
+      # LAYER 1 + 2 — unit tests and standalone verifier via ctest
+      # ------------------------------------------------------------------
+      - name: Run ctest
+        run: ctest --test-dir build -C Release --output-on-failure --verbose
+
+      # ------------------------------------------------------------------
+      # LAYER 3 — executable smoke
+      # ------------------------------------------------------------------
+      - name: crux --version
+        run: "${{ matrix.crux_exe }} --version"
+
+      - name: crux --help exits 0
+        run: "${{ matrix.crux_exe }} --help > /dev/null"
+
+      - name: crux with missing URL exits non-zero
+        run: |
+          if ${{ matrix.crux_exe }} > /dev/null 2>&1; then
+            echo "FAIL: missing URL should have returned non-zero"
+            exit 1
+          fi
+
+      - name: crux with bogus URL fails cleanly (does not crash)
+        run: |
+          if ${{ matrix.crux_exe }} "not_a_real_video_id" --dry-run > /dev/null 2>&1; then
+            echo "FAIL: bogus URL should have returned non-zero"
+            exit 1
+          fi
+
+      # ------------------------------------------------------------------
+      # LAYER 4 — dashboard server smoke via curl
+      # ------------------------------------------------------------------
+      - name: Dashboard server smoke
+        run: |
+          set -eo pipefail
+          PORT=18181
+          BASE="http://127.0.0.1:$PORT"
+
+          # Start the server in the background.
+          "${{ matrix.server_exe }}" --port "$PORT" &
+          SERVER_PID=$!
+          echo "server PID: $SERVER_PID"
+
+          # Poll until the server accepts connections (max ~10s).
+          for i in $(seq 1 40); do
+            if curl -sS -o /dev/null "$BASE/api/info" 2>/dev/null; then
+              echo "server is up"
+              break
+            fi
+            sleep 0.25
+          done
+
+          # Assert helper
+          assert_status() {
+            local url="$1"; local expected="$2"; local label="$3"
+            local got
+            got=$(curl -sS -o /dev/null -w '%{http_code}' "$url")
+            if [ "$got" = "$expected" ]; then
+              echo "  ok    $label ($got)"
+            else
+              echo "  FAIL  $label (got $got, want $expected)"
+              return 1
+            fi
+          }
+          fail=0
+
+          # GET /api/info
+          curl -sS "$BASE/api/info" | grep -q '"cwd"' \
+            && echo "  ok    GET /api/info" \
+            || { echo "  FAIL  GET /api/info"; fail=$((fail+1)); }
+
+          # GET /  serves the dashboard html
+          curl -sS "$BASE/" | grep -q '<title>crux' \
+            && echo "  ok    GET / (dashboard html)" \
+            || { echo "  FAIL  GET / (dashboard html)"; fail=$((fail+1)); }
+
+          # Static asset
+          assert_status "$BASE/logo.svg" 200 "GET /logo.svg" || fail=$((fail+1))
+
+          # GET /api/jobs — empty list ok
+          curl -sS "$BASE/api/jobs" | grep -q '"jobs"' \
+            && echo "  ok    GET /api/jobs" \
+            || { echo "  FAIL  GET /api/jobs"; fail=$((fail+1)); }
+
+          # POST /api/run with no url → 400
+          got=$(curl -sS -X POST -H 'Content-Type: application/json' \
+                -d '{}' -o /dev/null -w '%{http_code}' "$BASE/api/run")
+          if [ "$got" = "400" ]; then
+            echo "  ok    POST /api/run (empty body → 400)"
+          else
+            echo "  FAIL  POST /api/run (got $got, want 400)"
+            fail=$((fail+1))
+          fi
+
+          # GET /api/jobs/DOES_NOT_EXIST → 404
+          assert_status "$BASE/api/jobs/DOES_NOT_EXIST" 404 \
+            "GET /api/jobs/DOES_NOT_EXIST" || fail=$((fail+1))
+
+          # Cleanup
+          kill "$SERVER_PID" 2>/dev/null || true
+          wait "$SERVER_PID" 2>/dev/null || true
+
+          if [ "$fail" != "0" ]; then
+            echo "$fail server smoke assertion(s) failed"
+            exit 1
+          fi
+
+      # ------------------------------------------------------------------
+      # Upload the built binaries as an artifact when the whole workflow
+      # succeeds — useful for pulling down a fresh build without cloning.
+      # ------------------------------------------------------------------
+      - name: Upload built binaries
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crux-${{ matrix.os }}
+          path: |
+            ${{ matrix.exe_dir }}/crux*
+          if-no-files-found: warn
+          retention-days: 14

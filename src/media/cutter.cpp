@@ -14,7 +14,7 @@
 
 namespace fs = std::filesystem;
 
-namespace ytshorts::media {
+namespace crux::media {
 
 namespace {
 
@@ -129,4 +129,4 @@ void cut_clip(const std::string& source_file,
     }
 }
 
-} // namespace ytshorts::media
+} // namespace crux::media

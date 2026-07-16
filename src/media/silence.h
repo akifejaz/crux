@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace ytshorts::media {
+namespace crux::media {
 
 struct SilenceWindow {
     double start_sec = 0.0;
@@ -25,4 +25,4 @@ double snap_to_silence(double t,
                        const std::vector<SilenceWindow>& silences,
                        double max_shift);
 
-} // namespace ytshorts::media
+} // namespace crux::media
