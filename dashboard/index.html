@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ytshorts — dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --bg: #0f1216;
+  --panel: #171b21;
+  --panel-2: #1c2028;
+  --border: #2a2f39;
+  --text: #e6e8ea;
+  --muted: #98a1af;
+  --accent: #4dabf7;
+  --accent-2: #339af0;
+  --ok: #37b24d;
+  --warn: #f59f00;
+  --err: #f03e3e;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-2); }
+
+header {
+  padding: 14px 22px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 14px;
+  background: var(--panel);
+}
+header h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+header .sub { color: var(--muted); font-size: 12px; }
+
+main {
+  display: grid; grid-template-columns: 380px 1fr; gap: 0;
+  height: calc(100vh - 51px);
+}
+.sidebar {
+  background: var(--panel); border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 18px;
+}
+.right { display: flex; flex-direction: column; overflow: hidden; }
+
+label { display: block; font-size: 12px; color: var(--muted);
+  margin: 12px 0 4px; letter-spacing: .3px; text-transform: uppercase; }
+input[type=text], select {
+  width: 100%; background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 9px 10px; font-size: 14px;
+}
+input[type=range] { width: 100%; }
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.checkbox { display: flex; gap: 8px; align-items: center; margin: 8px 0;
+  color: var(--text); font-size: 13px; }
+.checkbox input { accent-color: var(--accent); }
+.slider-value { display: inline-block; min-width: 32px; text-align: right;
+  color: var(--accent); font-family: var(--mono); font-size: 13px; }
+
+button.primary {
+  width: 100%; margin-top: 16px; background: var(--accent);
+  color: #0b1220; border: 0; padding: 11px 14px; border-radius: 6px;
+  font-weight: 600; font-size: 14px; cursor: pointer;
+}
+button.primary:hover:not(:disabled) { background: var(--accent-2); }
+button.primary:disabled { opacity: .5; cursor: not-allowed; }
+
+.tabs { display: flex; gap: 2px; padding: 12px 22px 0 22px; }
+.tab {
+  padding: 8px 14px; cursor: pointer; color: var(--muted);
+  border-bottom: 2px solid transparent; font-size: 13px;
+}
+.tab.active { color: var(--text); border-color: var(--accent); }
+.tab .count { color: var(--muted); font-size: 11px; margin-left: 6px; }
+.panels { flex: 1; overflow: auto; padding: 14px 22px 22px 22px; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+.log {
+  background: #0a0d12; border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; font-family: var(--mono); font-size: 12.5px;
+  color: #cfd6df; white-space: pre-wrap; overflow: auto; min-height: 200px;
+  max-height: 100%;
+}
+.log .prefix { color: var(--muted); }
+.log .warn   { color: var(--warn); }
+.log .err    { color: var(--err); }
+.log .ok     { color: var(--ok); }
+
+.status-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 999px; font-size: 12px;
+  border: 1px solid var(--border); background: var(--panel-2);
+}
+.status-pill .dot { width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted); }
+.status-pill.running .dot { background: var(--accent); animation: pulse 1.2s infinite; }
+.status-pill.done    .dot { background: var(--ok); }
+.status-pill.err     .dot { background: var(--err); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+.clip-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px; margin-top: 12px;
+}
+.clip {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden;
+}
+.clip video { display: block; width: 100%; background: #000; aspect-ratio: 9/16;
+  object-fit: contain; }
+.clip .meta { padding: 10px 12px; }
+.clip .title { font-weight: 600; margin-bottom: 4px; }
+.clip .row2 { color: var(--muted); font-size: 12px; display: flex;
+  justify-content: space-between; }
+.clip .row2 code { font-family: var(--mono); font-size: 11.5px; }
+.clip a.download { display: inline-block; margin-top: 8px; font-size: 12px; }
+
+.sparkline {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.sparkline .head { display: flex; justify-content: space-between;
+  color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.sparkline svg { display: block; width: 100%; height: 74px; }
+
+.videometa {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.videometa .title { font-weight: 600; margin-bottom: 4px; }
+.videometa .row2 { color: var(--muted); font-size: 12px; }
+
+.job-history { margin-top: 20px; }
+.job-history h3 { font-size: 12px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .3px; margin: 0 0 6px; }
+.job-history .item {
+  padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  color: var(--muted); font-size: 12.5px;
+  border: 1px solid transparent;
+}
+.job-history .item:hover { background: var(--panel-2); }
+.job-history .item.active { background: var(--panel-2);
+  border-color: var(--border); color: var(--text); }
+.job-history .item .id  { font-family: var(--mono); font-size: 11px;
+  color: var(--muted); }
+
+.empty-state {
+  text-align: center; color: var(--muted); padding: 60px 20px;
+  font-size: 14px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ytshorts</h1>
+  <div class="sub">Most-replayed → Shorts extractor</div>
+  <div style="flex:1"></div>
+  <span id="status-pill" class="status-pill"><span class="dot"></span><span id="status-text">idle</span></span>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <form id="form">
+      <label for="url">YouTube URL or video id</label>
+      <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+
+      <label>Max clips <span id="maxClipsValue" class="slider-value">6</span></label>
+      <input id="maxClips" type="range" min="1" max="10" value="6">
+
+      <div class="row">
+        <div>
+          <label for="format">Format</label>
+          <select id="format">
+            <option value="916blur">9:16 blur (default)</option>
+            <option value="916crop">9:16 center crop</option>
+            <option value="orig">Original</option>
+          </select>
+        </div>
+        <div>
+          <label for="cookies">Browser cookies</label>
+          <select id="cookies">
+            <option value="none">None</option>
+            <option value="chrome">Chrome</option>
+            <option value="edge">Edge</option>
+            <option value="firefox">Firefox</option>
+            <option value="brave">Brave</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Clip length <span id="clipLenValue" class="slider-value">auto</span></label>
+      <input id="clipLen" type="range" min="0" max="180" value="0">
+
+      <div class="checkbox"><input type="checkbox" id="dryRun"><label for="dryRun" style="margin:0; text-transform:none; color:var(--text)">Dry-run (plan only, no download)</label></div>
+      <div class="checkbox"><input type="checkbox" id="dumpHeatmap" checked><label for="dumpHeatmap" style="margin:0; text-transform:none; color:var(--text)">Write heatmap.json</label></div>
+      <div class="checkbox"><input type="checkbox" id="keepIntro"><label for="keepIntro" style="margin:0; text-transform:none; color:var(--text)">Keep intro bins</label></div>
+      <div class="checkbox"><input type="checkbox" id="strict"><label for="strict" style="margin:0; text-transform:none; color:var(--text)">Strict (exit on flat heatmap)</label></div>
+      <div class="checkbox"><input type="checkbox" id="fullDownload"><label for="fullDownload" style="margin:0; text-transform:none; color:var(--text)">Force full download</label></div>
+
+      <button id="runBtn" class="primary" type="submit">Run</button>
+    </form>
+
+    <div class="job-history">
+      <h3>Recent runs</h3>
+      <div id="jobList"></div>
+    </div>
+  </aside>
+
+  <section class="right">
+    <div class="tabs">
+      <div class="tab active" data-panel="results">Results</div>
+      <div class="tab" data-panel="log">Log</div>
+    </div>
+    <div class="panels">
+      <div id="panel-results" class="panel active">
+        <div id="resultsBody">
+          <div class="empty-state">
+            Fill the form on the left and press <b>Run</b>.
+          </div>
+        </div>
+      </div>
+      <div id="panel-log" class="panel">
+        <div id="logBody" class="log">(no runs yet)</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+const $ = (id) => document.getElementById(id);
+const state = {
+  currentJob: null,
+  logFrom: 0,
+  logPoller: null,
+  jobPoller: null,
+};
+
+// ---------- form ↔ ui state ----------
+$("maxClips").addEventListener("input", (e) => {
+  $("maxClipsValue").textContent = e.target.value;
+});
+$("clipLen").addEventListener("input", (e) => {
+  const v = +e.target.value;
+  $("clipLenValue").textContent = v === 0 ? "auto" : v + "s";
+});
+
+// tabs
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    $("panel-" + tab.dataset.panel).classList.add("active");
+  });
+});
+
+// ---------- status pill ----------
+function setStatus(kind, text) {
+  const p = $("status-pill");
+  p.className = "status-pill " + kind;
+  $("status-text").textContent = text;
+}
+
+// ---------- run ----------
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const url = $("url").value.trim();
+  if (!url) return;
+  const payload = {
+    url,
+    max_clips: +$("maxClips").value,
+    format: $("format").value,
+    cookies: $("cookies").value,
+    dry_run: $("dryRun").checked,
+    dump_heatmap: $("dumpHeatmap").checked,
+    keep_intro: $("keepIntro").checked,
+    strict: $("strict").checked,
+    full_download: $("fullDownload").checked,
+  };
+  const clipLen = +$("clipLen").value;
+  if (clipLen > 0) payload.clip_len = clipLen;
+
+  $("runBtn").disabled = true;
+  setStatus("running", "starting...");
+  try {
+    const r = await fetch("/api/run", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "run failed");
+    attachJob(j.job_id);
+    refreshJobList();
+  } catch (err) {
+    setStatus("err", "failed to start");
+    $("logBody").textContent = "error: " + err.message;
+  } finally {
+    $("runBtn").disabled = false;
+  }
+});
+
+// ---------- job attach + poll ----------
+function attachJob(id) {
+  if (state.logPoller) clearInterval(state.logPoller);
+  if (state.jobPoller) clearInterval(state.jobPoller);
+  state.currentJob = id;
+  state.logFrom = 0;
+  $("logBody").textContent = "";
+  $("resultsBody").innerHTML = `<div class="empty-state">Running… see the Log tab for live output.</div>`;
+  setStatus("running", "running " + id);
+
+  const tickLog = async () => {
+    if (!state.currentJob) return;
+    try {
+      const r = await fetch(`/api/jobs/${state.currentJob}/log?from=${state.logFrom}`);
+      const j = await r.json();
+      if (j.chunk) {
+        appendLog(j.chunk);
+        state.logFrom = j.next;
+      }
+      if (j.done) {
+        clearInterval(state.logPoller);
+        state.logPoller = null;
+        // final log flush
+        if (j.next > state.logFrom) {
+          const r2 = await fetch(`/api/jobs/${state.currentJob}/log?from=${state.logFrom}`);
+          const j2 = await r2.json();
+          if (j2.chunk) { appendLog(j2.chunk); state.logFrom = j2.next; }
+        }
+        finishJob(j.exit_code);
+      }
+    } catch (e) { /* transient, retry next tick */ }
+  };
+  state.logPoller = setInterval(tickLog, 400);
+  tickLog();
+}
+
+function appendLog(text) {
+  const el = $("logBody");
+  const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+  // Colorize a few well-known tokens.
+  const esc = (s) => s.replace(/[&<>]/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  let html = esc(text);
+  html = html.replace(/\[(\d+)\/(\d+)\]/g, '<span class="prefix">[$1/$2]</span>');
+  html = html.replace(/\berror:/g, '<span class="err">error:</span>');
+  html = html.replace(/\bwarning:/g, '<span class="warn">warning:</span>');
+  html = html.replace(/\[warn\]/g, '<span class="warn">[warn]</span>');
+  html = html.replace(/\[ok\]/g, '<span class="ok">[ok]</span>');
+  el.insertAdjacentHTML("beforeend", html);
+  if (isBottom) el.scrollTop = el.scrollHeight;
+}
+
+async function finishJob(exit_code) {
+  if (exit_code === 0) setStatus("done", "done");
+  else                 setStatus("err", "exit " + exit_code);
+  await renderResults();
+}
+
+// ---------- results ----------
+async function renderResults() {
+  const id = state.currentJob;
+  const body = $("resultsBody");
+  let manifest = null;
+  try {
+    const r = await fetch(`/api/jobs/${id}/manifest`);
+    if (r.ok) manifest = await r.json();
+  } catch (e) {}
+  if (!manifest) {
+    body.innerHTML = `<div class="empty-state">
+      Job finished, but no manifest.json was produced. See the Log tab for details.
+    </div>`;
+    return;
+  }
+  let heatmap = null;
+  try {
+    const r = await fetch(`/api/jobs/${id}/heatmap`);
+    if (r.ok) heatmap = await r.json();
+  } catch (e) {}
+
+  const v = manifest.video || {};
+  const q = manifest.quality || {};
+  const clips = manifest.clips || [];
+
+  let html = `
+    <div class="videometa">
+      <div class="title">${esc(v.title || v.id || "?")}</div>
+      <div class="row2">
+        ${esc(v.channel || "")} · ${fmtSec(v.duration || 0)} ·
+        max/med ${(q.maxOverMedian || 0).toFixed(2)}${q.flat ? ' <span class="warn">(flat)</span>' : ''}
+        · <a href="${esc(v.url || '#')}" target="_blank">source</a>
+      </div>
+    </div>
+  `;
+
+  if (heatmap && heatmap.bins) {
+    html += renderSparkline(heatmap.bins, clips);
+  }
+
+  if (clips.length === 0) {
+    html += `<div class="empty-state">No clips were produced.</div>`;
+  } else {
+    html += `<div class="clip-grid">`;
+    for (const c of clips) {
+      const src = `/api/jobs/${id}/file/${encodeURIComponent(c.file)}`;
+      html += `
+        <div class="clip">
+          ${manifest.params && manifest.params.dry_run ? '' :
+            `<video controls preload="metadata" src="${src}"></video>`}
+          <div class="meta">
+            <div class="title">#${c.index} — ${fmtSec(c.start)} → ${fmtSec(c.end)}</div>
+            <div class="row2">
+              <span>bin ${c.peakBin} · peak ${(c.peakScore||0).toFixed(2)}</span>
+              <code>${(c.duration||0).toFixed(1)}s</code>
+            </div>
+            ${c.label ? `<div class="row2"><span>${esc(c.label)}</span></div>` : ''}
+            <a class="download" href="${src}" download>Download ${esc(c.file)}</a>
+          </div>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+
+  body.innerHTML = html;
+}
+
+function renderSparkline(bins, clips) {
+  const W = 780, H = 74, PAD = 4;
+  const bw = (W - PAD * 2) / bins.length;
+  let bars = "";
+  const maxV = Math.max(0.01, ...bins.map(b => b.value || 0));
+  for (let i = 0; i < bins.length; i++) {
+    const v = bins[i].value || 0;
+    const h = (v / maxV) * (H - 12);
+    bars += `<rect x="${PAD + i*bw}" y="${H - h - 2}" width="${bw - 0.5}" height="${h}" fill="#4dabf7" fill-opacity="${0.3 + 0.7 * v}"/>`;
+  }
+  // overlays for clip windows
+  const dur = bins.length * (bins[0] ? (bins[0].end - bins[0].start) : 1);
+  let bands = "";
+  for (const c of clips) {
+    const x1 = PAD + (c.start / dur) * (W - PAD*2);
+    const x2 = PAD + (c.end   / dur) * (W - PAD*2);
+    bands += `<rect x="${x1}" y="2" width="${x2 - x1}" height="${H - 4}"
+                fill="#f59f00" fill-opacity="0.10" stroke="#f59f00" stroke-opacity="0.55"/>
+              <text x="${(x1+x2)/2}" y="10" font-size="10" fill="#f59f00"
+                text-anchor="middle" font-family="ui-monospace">${c.index}</text>`;
+  }
+  return `
+    <div class="sparkline">
+      <div class="head">
+        <span>Heatmap (100 bins)</span>
+        <span>peak scale: 0.0–${maxV.toFixed(2)}</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        ${bars}${bands}
+      </svg>
+    </div>`;
+}
+
+function esc(s) { return String(s).replace(/[&<>"]/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fmtSec(t) {
+  t = Math.round(t);
+  const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+  const pad = (n)=>String(n).padStart(2,"0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
+// ---------- job list ----------
+async function refreshJobList() {
+  try {
+    const r = await fetch("/api/jobs");
+    const j = await r.json();
+    const html = j.jobs.map(job => `
+      <div class="item ${job.id === state.currentJob ? 'active' : ''}" data-id="${esc(job.id)}">
+        <div>${esc(shortUrl(job.url))}</div>
+        <div class="id">${esc(job.id)} · ${job.done ? (job.exit_code === 0 ? 'ok' : 'exit ' + job.exit_code) : 'running'}</div>
+      </div>`).join("");
+    $("jobList").innerHTML = html || `<div style="color:var(--muted); font-size:12px">nothing yet</div>`;
+    $("jobList").querySelectorAll(".item").forEach(el => {
+      el.addEventListener("click", () => attachJob(el.dataset.id));
+    });
+  } catch (e) {}
+}
+function shortUrl(u) {
+  const m = String(u).match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (m) return "youtube: " + m[1];
+  return u.length > 42 ? u.slice(0, 40) + "…" : u;
+}
+setInterval(refreshJobList, 3000);
+refreshJobList();
+</script>
+</body>
+</html>

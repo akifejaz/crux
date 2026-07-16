@@ -1,0 +1,26 @@
+# Normalize line endings to avoid noisy diffs on Windows / Linux.
+* text=auto eol=lf
+
+# Windows scripts need CRLF or cmd.exe/PowerShell mishandles them.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+*.ps1  text eol=crlf
+
+# Source files: always LF
+*.h    text eol=lf
+*.hpp  text eol=lf
+*.c    text eol=lf
+*.cpp  text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+
+# Binary blobs (should be rare in this repo, but just in case)
+*.png  binary
+*.jpg  binary
+*.mp4  binary
+*.zip  binary
+*.exe  binary
+*.dll  binary

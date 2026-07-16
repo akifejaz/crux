@@ -1,0 +1,11 @@
+{
+  "name": "ytshorts",
+  "version-string": "0.1.0",
+  "description": "Most-Replayed → YouTube Shorts extractor (C++)",
+  "dependencies": [
+    "cli11",
+    "nlohmann-json",
+    "spdlog",
+    "doctest"
+  ]
+}
