@@ -66,14 +66,27 @@ void cut_clip(const std::string& source_file,
               const std::string& out_file) {
     const std::string ffmpeg = binres::resolve_ffmpeg(cfg.ffmpeg_path);
 
-    preflight_input(source_file);
-
-    // Translate video-time (clip.start_sec) → file-time when sections were
-    // used. Sections mode writes each range starting at file-time 0. Full
-    // download mode leaves dl.sections empty and we cut directly.
+    // Pick the actual input file. Three cases:
+    //   (a) Per-clip parallel mode → one mp4 per clip, indexed by clip.index-1
+    //   (b) Legacy multi-section single-file → source_file with dl.sections[]
+    //   (c) Full download → source_file, no translation
+    std::string input = source_file;
     double s = clip.start_sec;
     double e = clip.end_sec;
-    if (!dl.sections.empty()) {
+
+    const std::size_t idx = static_cast<std::size_t>(std::max(0, clip.index - 1));
+    if (!dl.per_clip_files.empty() &&
+        idx < dl.per_clip_files.size() &&
+        !dl.per_clip_files[idx].empty()) {
+        // Case (a): per-clip file. Its timeline starts at src_start_sec.
+        input = dl.per_clip_files[idx];
+        if (idx < dl.sections.size()) {
+            const auto& sec = dl.sections[idx];
+            s = clip.start_sec - sec.src_start_sec + sec.file_start_sec;
+            e = clip.end_sec   - sec.src_start_sec + sec.file_start_sec;
+        }
+    } else if (!dl.sections.empty()) {
+        // Case (b): legacy single-file-multi-section.
         for (const auto& sec : dl.sections) {
             if (clip.start_sec >= sec.src_start_sec && clip.end_sec <= sec.src_end_sec) {
                 s = clip.start_sec - sec.src_start_sec + sec.file_start_sec;
@@ -82,6 +95,9 @@ void cut_clip(const std::string& source_file,
             }
         }
     }
+    // Case (c): defaults are already correct.
+
+    preflight_input(input);
 
     std::vector<std::string> args = {
         "-y",
@@ -89,7 +105,7 @@ void cut_clip(const std::string& source_file,
         "-stats",
         "-ss", ftos(s),
         "-to", ftos(e),
-        "-i", source_file,
+        "-i", input,
     };
 
     const char* filt = filter_for(fmt);

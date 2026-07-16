@@ -141,6 +141,7 @@ add_executable(crux_tests
     tests/cli_test.cpp
     tests/manifest_test.cpp
     tests/proc_test.cpp
+    tests/downloader_strategy_test.cpp
 )
 target_link_libraries(crux_tests PRIVATE crux_core doctest::doctest)
 target_compile_definitions(crux_tests PRIVATE

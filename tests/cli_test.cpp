@@ -140,15 +140,23 @@ TEST_CASE("cli: --source native maps correctly") {
 TEST_CASE("cli: boolean flags flip fields") {
     auto r = run_cli({"crux", "abc",
         "--dry-run", "--dump-heatmap", "--keep-intro",
-        "--strict", "--full-download", "--json", "-v"});
+        "--strict", "--full-download", "--try-sections", "--json", "-v"});
     REQUIRE(r.should_run);
     CHECK(r.config.dry_run);
     CHECK(r.config.dump_heatmap);
     CHECK(r.config.keep_intro);
     CHECK(r.config.strict);
     CHECK(r.config.full_download);
+    CHECK(r.config.try_sections);
     CHECK(r.config.json_stdout);
     CHECK(r.config.verbose);
+}
+
+TEST_CASE("cli: try_sections defaults to false (safe path)") {
+    auto r = run_cli({"crux", "abc"});
+    REQUIRE(r.should_run);
+    CHECK(r.config.try_sections == false);
+    CHECK(r.config.full_download == false);
 }
 
 TEST_CASE("cli: --version returns should_run=false, exit_code=0") {

@@ -6,227 +6,533 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <style>
+/* ========================================================================
+ * Tokens
+ * ==================================================================== */
 :root {
-  --bg: #0f1216;
-  --panel: #171b21;
-  --panel-2: #1c2028;
-  --border: #2a2f39;
+  --bg: #0d1015;
+  --panel: #151920;
+  --panel-2: #1a1f28;
+  --panel-3: #1f2530;
+  --border: #262c36;
+  --border-2: #313947;
   --text: #e6e8ea;
-  --muted: #98a1af;
+  --text-2: #b6bcc7;
+  --muted: #8a93a1;
+  --muted-2: #6b7280;
   --accent: #4dabf7;
   --accent-2: #339af0;
+  --accent-fg: #0b1220;
   --ok: #37b24d;
   --warn: #f59f00;
   --err: #f03e3e;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Cascadia Code", monospace;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
-  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--bg); color: var(--text);
+  font: 13.5px/1.55 var(--font);
+}
 a { color: var(--accent); text-decoration: none; }
 a:hover { color: var(--accent-2); }
 
+/* ========================================================================
+ * Header
+ * ==================================================================== */
 header {
-  padding: 14px 22px; border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; gap: 14px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
   background: var(--panel);
+  display: flex; align-items: center; gap: 12px;
 }
-header h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+header img { display: block; }
+header h1 {
+  margin: 0; font-size: 15px; font-weight: 600; letter-spacing: .3px;
+}
 header .sub { color: var(--muted); font-size: 12px; }
+header .spacer { flex: 1; }
+header .link { color: var(--muted); font-size: 12px; margin-right: 8px; }
+header .link:hover { color: var(--text); }
 
+.status-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 12px; border-radius: 999px; font-size: 12px;
+  border: 1px solid var(--border-2); background: var(--panel-2);
+  color: var(--text-2);
+  min-height: 26px;
+}
+.status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status-pill.working  .dot { background: var(--accent); animation: pulse 1.1s infinite; }
+.status-pill.done     .dot { background: var(--ok); }
+.status-pill.err      .dot { background: var(--err); }
+.status-pill.stale    { border-color: var(--err); color: var(--err); }
+.status-pill.stale    .dot { background: var(--err); }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* ========================================================================
+ * Layout
+ * ==================================================================== */
 main {
-  display: grid; grid-template-columns: 380px 1fr; gap: 0;
+  display: grid;
+  grid-template-columns: 380px 1fr;
   height: calc(100vh - 51px);
 }
 .sidebar {
-  background: var(--panel); border-right: 1px solid var(--border);
-  overflow-y: auto; padding: 18px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px 18px 18px;
 }
 .right { display: flex; flex-direction: column; overflow: hidden; }
 
-label { display: block; font-size: 12px; color: var(--muted);
-  margin: 12px 0 4px; letter-spacing: .3px; text-transform: uppercase; }
+/* ========================================================================
+ * Form controls (shared)
+ * ==================================================================== */
+.field { margin-bottom: 12px; }
+label.k {
+  display: block; font-size: 11px; color: var(--muted);
+  margin: 0 0 5px; letter-spacing: .5px; text-transform: uppercase;
+  font-weight: 600;
+}
 input[type=text], select {
   width: 100%; background: var(--panel-2); color: var(--text);
   border: 1px solid var(--border); border-radius: 6px;
-  padding: 9px 10px; font-size: 14px;
+  padding: 9px 10px; font-size: 13.5px;
+  font-family: inherit;
 }
-input[type=range] { width: 100%; }
-input:focus, select:focus { outline: none; border-color: var(--accent); }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.checkbox { display: flex; gap: 8px; align-items: center; margin: 8px 0;
-  color: var(--text); font-size: 13px; }
-.checkbox input { accent-color: var(--accent); }
-.slider-value { display: inline-block; min-width: 32px; text-align: right;
-  color: var(--accent); font-family: var(--mono); font-size: 13px; }
-
-button.primary {
-  width: 100%; margin-top: 16px; background: var(--accent);
-  color: #0b1220; border: 0; padding: 11px 14px; border-radius: 6px;
-  font-weight: 600; font-size: 14px; cursor: pointer;
+input[type=text]:focus, select:focus {
+  outline: none; border-color: var(--accent);
 }
-button.primary:hover:not(:disabled) { background: var(--accent-2); }
-button.primary:disabled { opacity: .5; cursor: not-allowed; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.slider-row {
+  display: flex; align-items: baseline; gap: 8px;
+}
+.slider-row input[type=range] { flex: 1; }
+.slider-value {
+  min-width: 46px; text-align: right;
+  color: var(--accent); font-family: var(--mono); font-size: 12.5px;
+}
+.check {
+  display: flex; gap: 8px; align-items: center;
+  padding: 4px 0;
+  color: var(--text-2); font-size: 13px;
+  cursor: pointer;
+}
+.check input {
+  accent-color: var(--accent);
+  width: 15px; height: 15px;
+}
+.check .hint { color: var(--muted-2); font-size: 11.5px; }
 
-.tabs { display: flex; gap: 2px; padding: 12px 22px 0 22px; }
+.row2 {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+
+/* URL field with extracted-id chip */
+.url-wrap { position: relative; }
+.url-chip {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: var(--panel-3); color: var(--accent);
+  font: 11px var(--mono);
+  padding: 3px 7px; border-radius: 4px;
+  pointer-events: none;
+  border: 1px solid var(--border-2);
+}
+.url-chip.hidden { display: none; }
+
+/* ========================================================================
+ * Presets
+ * ==================================================================== */
+.presets {
+  display: flex; flex-wrap: wrap; gap: 5px;
+}
+.preset {
+  padding: 5px 10px; border-radius: 4px;
+  border: 1px solid var(--border-2); background: var(--panel-2);
+  color: var(--text-2); font-size: 12px; cursor: pointer;
+  transition: background 100ms;
+}
+.preset:hover { background: var(--panel-3); color: var(--text); }
+.preset.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+/* ========================================================================
+ * Advanced (collapsible)
+ * ==================================================================== */
+details.adv {
+  margin: 12px 0; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--panel-2);
+}
+details.adv[open] { border-color: var(--border-2); }
+details.adv summary {
+  padding: 9px 12px; font-size: 12px; color: var(--text-2);
+  cursor: pointer; user-select: none;
+  list-style: none;
+  display: flex; align-items: center; gap: 6px;
+}
+details.adv summary::-webkit-details-marker { display: none; }
+details.adv summary::before {
+  content: "▶"; font-size: 9px; color: var(--muted);
+  transition: transform 150ms;
+}
+details.adv[open] summary::before { transform: rotate(90deg); }
+details.adv .adv-body { padding: 6px 12px 12px; }
+
+/* ========================================================================
+ * CLI preview
+ * ==================================================================== */
+.cli-block {
+  background: #0a0d12;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: 11.5px/1.55 var(--mono);
+  color: #cfd6df;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 130px;
+  overflow-y: auto;
+  position: relative;
+}
+.cli-block .copy {
+  position: absolute; right: 6px; top: 6px;
+  background: var(--panel-3); color: var(--muted); border: 1px solid var(--border-2);
+  border-radius: 4px; padding: 2px 7px; font-size: 10.5px; cursor: pointer;
+}
+.cli-block .copy:hover { color: var(--text); }
+.cli-block .flag { color: var(--accent); }
+.cli-block .val  { color: var(--text); }
+
+/* ========================================================================
+ * Buttons
+ * ==================================================================== */
+.btn-run {
+  width: 100%; margin-top: 14px;
+  background: var(--accent); color: var(--accent-fg);
+  border: 0; padding: 11px; border-radius: 6px;
+  font-weight: 600; font-size: 13.5px;
+  cursor: pointer;
+  transition: background 100ms;
+}
+.btn-run:hover:not(:disabled) { background: var(--accent-2); }
+.btn-run:disabled { opacity: .55; cursor: not-allowed; }
+.btn-run.busy { background: var(--panel-3); color: var(--muted); border: 1px solid var(--border-2); }
+
+/* ========================================================================
+ * Recent runs
+ * ==================================================================== */
+.section-title {
+  font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+  margin: 20px 0 6px;
+}
+.jobs .item {
+  padding: 7px 10px; border-radius: 5px; cursor: pointer;
+  color: var(--text-2); font-size: 12.5px;
+  border: 1px solid transparent;
+  transition: background 100ms;
+}
+.jobs .item:hover { background: var(--panel-2); }
+.jobs .item.active { background: var(--panel-2); border-color: var(--border-2); color: var(--text); }
+.jobs .item .id {
+  font-family: var(--mono); font-size: 10.5px;
+  color: var(--muted-2); margin-top: 2px;
+}
+.jobs .item .state.ok  { color: var(--ok); }
+.jobs .item .state.err { color: var(--err); }
+.jobs .empty { color: var(--muted-2); font-size: 12px; padding: 6px 0; }
+
+/* ========================================================================
+ * Main tabs
+ * ==================================================================== */
+.tabs {
+  display: flex; gap: 4px; padding: 10px 20px 0;
+  border-bottom: 1px solid var(--border);
+}
 .tab {
   padding: 8px 14px; cursor: pointer; color: var(--muted);
   border-bottom: 2px solid transparent; font-size: 13px;
+  margin-bottom: -1px;
 }
 .tab.active { color: var(--text); border-color: var(--accent); }
-.tab .count { color: var(--muted); font-size: 11px; margin-left: 6px; }
-.panels { flex: 1; overflow: auto; padding: 14px 22px 22px 22px; }
+.tab .count { color: var(--muted-2); font-size: 11px; margin-left: 5px; }
+
+.panels {
+  flex: 1; overflow: auto; padding: 16px 20px 24px;
+}
 .panel { display: none; }
 .panel.active { display: block; }
 
-.log {
-  background: #0a0d12; border: 1px solid var(--border); border-radius: 8px;
-  padding: 12px 14px; font-family: var(--mono); font-size: 12.5px;
-  color: #cfd6df; white-space: pre-wrap; overflow: auto; min-height: 200px;
-  max-height: 100%;
+/* ========================================================================
+ * Results tab
+ * ==================================================================== */
+.card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;
 }
-.log .prefix { color: var(--muted); }
-.log .warn   { color: var(--warn); }
-.log .err    { color: var(--err); }
-.log .ok     { color: var(--ok); }
+.card .title { font-weight: 600; margin-bottom: 4px; font-size: 14px; }
+.card .meta-row {
+  color: var(--muted); font-size: 12px;
+  display: flex; flex-wrap: wrap; gap: 10px;
+}
+.card .meta-row .chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--panel-3); color: var(--text-2);
+  padding: 2px 8px; border-radius: 4px; font-size: 11px;
+  border: 1px solid var(--border-2);
+}
+.card .meta-row .chip.warn { color: var(--warn); border-color: var(--warn); background: transparent; }
 
-.status-pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border-radius: 999px; font-size: 12px;
-  border: 1px solid var(--border); background: var(--panel-2);
+.sparkline { padding: 10px 14px; }
+.sparkline .head {
+  display: flex; justify-content: space-between;
+  color: var(--muted); font-size: 11.5px; margin-bottom: 6px;
 }
-.status-pill .dot { width: 8px; height: 8px; border-radius: 50%;
-  background: var(--muted); }
-.status-pill.running .dot { background: var(--accent); animation: pulse 1.2s infinite; }
-.status-pill.done    .dot { background: var(--ok); }
-.status-pill.err     .dot { background: var(--err); }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.sparkline svg {
+  display: block; width: 100%; height: 84px;
+  background: #0a0d12; border-radius: 4px;
+}
 
 .clip-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 14px; margin-top: 12px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
 }
 .clip {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-  overflow: hidden;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
 }
-.clip video { display: block; width: 100%; background: #000; aspect-ratio: 9/16;
-  object-fit: contain; }
-.clip .meta { padding: 10px 12px; }
-.clip .title { font-weight: 600; margin-bottom: 4px; }
-.clip .row2 { color: var(--muted); font-size: 12px; display: flex;
-  justify-content: space-between; }
-.clip .row2 code { font-family: var(--mono); font-size: 11.5px; }
-.clip a.download { display: inline-block; margin-top: 8px; font-size: 12px; }
-
-.sparkline {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-  padding: 12px 14px; margin-bottom: 14px;
+.clip video {
+  display: block; width: 100%; background: #000;
+  aspect-ratio: 9 / 16; object-fit: contain;
 }
-.sparkline .head { display: flex; justify-content: space-between;
-  color: var(--muted); font-size: 12px; margin-bottom: 6px; }
-.sparkline svg { display: block; width: 100%; height: 74px; }
+.clip .body { padding: 10px 12px; }
+.clip .body .n { font-weight: 600; }
+.clip .body .r { color: var(--muted); font-size: 11.5px; display: flex; justify-content: space-between; margin-top: 2px; }
+.clip .body .r code { font: 11px var(--mono); }
+.clip .body a.dl { display: inline-block; margin-top: 8px; font-size: 12px; }
+.clip .body .label { color: var(--muted-2); font-size: 11.5px; margin-top: 2px; }
 
-.videometa {
-  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
-  padding: 12px 14px; margin-bottom: 14px;
+/* ========================================================================
+ * Log tab
+ * ==================================================================== */
+.log-toolbar {
+  display: flex; gap: 6px; align-items: center;
+  margin-bottom: 8px; flex-wrap: wrap;
 }
-.videometa .title { font-weight: 600; margin-bottom: 4px; }
-.videometa .row2 { color: var(--muted); font-size: 12px; }
-
-.job-history { margin-top: 20px; }
-.job-history h3 { font-size: 12px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: .3px; margin: 0 0 6px; }
-.job-history .item {
-  padding: 8px 10px; border-radius: 6px; cursor: pointer;
-  color: var(--muted); font-size: 12.5px;
-  border: 1px solid transparent;
+.chip-btn {
+  padding: 3px 9px; border-radius: 999px;
+  border: 1px solid var(--border-2); background: var(--panel-2);
+  color: var(--text-2); font-size: 11.5px; cursor: pointer;
 }
-.job-history .item:hover { background: var(--panel-2); }
-.job-history .item.active { background: var(--panel-2);
-  border-color: var(--border); color: var(--text); }
-.job-history .item .id  { font-family: var(--mono); font-size: 11px;
-  color: var(--muted); }
+.chip-btn.active { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.chip-btn:hover:not(.active) { background: var(--panel-3); color: var(--text); }
 
-.empty-state {
+.log {
+  background: #0a0d12; border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font: 12px/1.5 var(--mono);
+  color: #cfd6df;
+  white-space: pre-wrap; word-break: break-word;
+  overflow: auto;
+  height: calc(100vh - 195px);
+}
+.log .line { display: block; }
+.log .line.hidden { display: none; }
+.log .tag { font-weight: 700; margin-right: 4px; }
+.log .step { color: var(--accent); }
+.log .warn { color: var(--warn); }
+.log .err  { color: var(--err); }
+.log .ok   { color: var(--ok); }
+
+/* ========================================================================
+ * Empty / help
+ * ==================================================================== */
+.empty {
   text-align: center; color: var(--muted); padding: 60px 20px;
-  font-size: 14px;
+  font-size: 13.5px;
 }
+.empty h3 { color: var(--text); font-size: 15px; margin: 0 0 8px; }
+.empty p { max-width: 480px; margin: 0 auto; }
+
+.stale-banner {
+  background: rgba(240, 62, 62, 0.15);
+  border: 1px solid var(--err); color: var(--err);
+  padding: 8px 12px; border-radius: 6px; margin-bottom: 12px;
+  font-size: 12.5px;
+  display: none;
+}
+.stale-banner.show { display: block; }
 </style>
 </head>
 <body>
 
 <header>
-  <img src="/logo.svg" alt="" width="28" height="28" style="display:block">
+  <img src="/logo.svg" alt="" width="26" height="26">
   <h1>crux</h1>
   <div class="sub">most-replayed → short clips</div>
-  <div style="flex:1"></div>
+  <div class="spacer"></div>
+  <a class="link" href="https://github.com" target="_blank">docs</a>
   <span id="status-pill" class="status-pill"><span class="dot"></span><span id="status-text">idle</span></span>
 </header>
 
 <main>
+  <!-- ================================================================ -->
+  <!-- SIDEBAR                                                          -->
+  <!-- ================================================================ -->
   <aside class="sidebar">
-    <form id="form">
-      <label for="url">YouTube URL or video id</label>
-      <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
-
-      <label>Max clips <span id="maxClipsValue" class="slider-value">6</span></label>
-      <input id="maxClips" type="range" min="1" max="10" value="6">
-
-      <div class="row">
-        <div>
-          <label for="format">Format</label>
-          <select id="format">
-            <option value="916blur">9:16 blur (default)</option>
-            <option value="916crop">9:16 center crop</option>
-            <option value="orig">Original</option>
-          </select>
-        </div>
-        <div>
-          <label for="cookies">Browser cookies</label>
-          <select id="cookies">
-            <option value="none">None</option>
-            <option value="chrome">Chrome</option>
-            <option value="edge">Edge</option>
-            <option value="firefox">Firefox</option>
-            <option value="brave">Brave</option>
-          </select>
+    <form id="form" autocomplete="off">
+      <div class="field">
+        <label class="k" for="url">YouTube URL or video id</label>
+        <div class="url-wrap">
+          <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=…">
+          <span id="url-chip" class="url-chip hidden"></span>
         </div>
       </div>
 
-      <label>Clip length <span id="clipLenValue" class="slider-value">auto</span></label>
-      <input id="clipLen" type="range" min="0" max="180" value="0">
+      <div class="field">
+        <label class="k">Preset</label>
+        <div class="presets" id="presets">
+          <span class="preset" data-preset="quick">Quick</span>
+          <span class="preset active" data-preset="balanced">Balanced</span>
+          <span class="preset" data-preset="podcast">Long podcast</span>
+          <span class="preset" data-preset="plan">Plan only</span>
+        </div>
+      </div>
 
-      <div class="checkbox"><input type="checkbox" id="dryRun"><label for="dryRun" style="margin:0; text-transform:none; color:var(--text)">Dry-run (plan only, no download)</label></div>
-      <div class="checkbox"><input type="checkbox" id="dumpHeatmap" checked><label for="dumpHeatmap" style="margin:0; text-transform:none; color:var(--text)">Write heatmap.json</label></div>
-      <div class="checkbox"><input type="checkbox" id="keepIntro"><label for="keepIntro" style="margin:0; text-transform:none; color:var(--text)">Keep intro bins</label></div>
-      <div class="checkbox"><input type="checkbox" id="strict"><label for="strict" style="margin:0; text-transform:none; color:var(--text)">Strict (exit on flat heatmap)</label></div>
-      <div class="checkbox"><input type="checkbox" id="fullDownload"><label for="fullDownload" style="margin:0; text-transform:none; color:var(--text)">Force full download</label></div>
+      <div class="field">
+        <label class="k">Max clips <span id="maxClipsValue" class="slider-value">6</span></label>
+        <div class="slider-row">
+          <input id="maxClips" type="range" min="1" max="10" value="6">
+        </div>
+      </div>
 
-      <button id="runBtn" class="primary" type="submit">Run</button>
+      <div class="field">
+        <label class="k" for="format">Format</label>
+        <select id="format">
+          <option value="916blur">9:16 blurred bars (default)</option>
+          <option value="916crop">9:16 center crop</option>
+          <option value="orig">Original aspect (no reframe)</option>
+        </select>
+      </div>
+
+      <details class="adv">
+        <summary>Advanced options</summary>
+        <div class="adv-body">
+          <div class="field">
+            <label class="k">Clip length <span id="clipLenValue" class="slider-value">auto</span></label>
+            <div class="slider-row">
+              <input id="clipLen" type="range" min="0" max="180" value="0">
+            </div>
+          </div>
+          <div class="field">
+            <label class="k">Min gap between clips (s) <span id="minGapValue" class="slider-value">auto</span></label>
+            <div class="slider-row">
+              <input id="minGap" type="range" min="0" max="600" value="0">
+            </div>
+          </div>
+
+          <div class="row2">
+            <div class="field">
+              <label class="k">Cookies from</label>
+              <select id="cookies">
+                <option value="none">None</option>
+                <option value="chrome">Chrome</option>
+                <option value="edge">Edge</option>
+                <option value="firefox">Firefox</option>
+                <option value="brave">Brave</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="k">Heatmap source</label>
+              <select id="source">
+                <option value="ytdlp">yt-dlp (default)</option>
+                <option value="native">native (stub)</option>
+              </select>
+            </div>
+          </div>
+
+          <label class="check"><input type="checkbox" id="dumpHeatmap" checked>
+            <span>Write heatmap.json + sparkline</span></label>
+          <label class="check"><input type="checkbox" id="dryRun">
+            <span>Dry-run <span class="hint">— plan only, no download</span></span></label>
+          <label class="check"><input type="checkbox" id="keepIntro">
+            <span>Keep intro bins <span class="hint">— include bin 0/1 in candidacy</span></span></label>
+          <label class="check"><input type="checkbox" id="strict">
+            <span>Strict <span class="hint">— exit on flat heatmap</span></span></label>
+          <label class="check"><input type="checkbox" id="fullDownload">
+            <span>Force full download</span></label>
+          <label class="check"><input type="checkbox" id="trySections">
+            <span>Try parallel sections <span class="hint">— unreliable for DASH; 5-min timeout</span></span></label>
+          <label class="check"><input type="checkbox" id="verbose">
+            <span>Verbose logging</span></label>
+
+          <div class="field" style="margin-top:10px">
+            <label class="k">yt-dlp binary path (override)</label>
+            <input id="ytdlpPath" type="text" placeholder="empty = use default">
+          </div>
+          <div class="field">
+            <label class="k">ffmpeg binary path (override)</label>
+            <input id="ffmpegPath" type="text" placeholder="empty = use default">
+          </div>
+        </div>
+      </details>
+
+      <label class="k" style="margin-top:14px">Equivalent CLI</label>
+      <div class="cli-block">
+        <button type="button" class="copy" id="copyCli" title="copy">copy</button>
+        <span id="cliText">run.bat</span>
+      </div>
+
+      <button id="runBtn" class="btn-run" type="submit">▶  Run</button>
     </form>
 
-    <div class="job-history">
-      <h3>Recent runs</h3>
-      <div id="jobList"></div>
-    </div>
+    <div class="section-title">Recent runs</div>
+    <div class="jobs" id="jobList"></div>
   </aside>
 
+  <!-- ================================================================ -->
+  <!-- MAIN                                                             -->
+  <!-- ================================================================ -->
   <section class="right">
     <div class="tabs">
       <div class="tab active" data-panel="results">Results</div>
-      <div class="tab" data-panel="log">Log</div>
+      <div class="tab" data-panel="log">Log <span class="count" id="logCount"></span></div>
     </div>
     <div class="panels">
+      <div id="staleBanner" class="stale-banner">
+        Can't reach the server on this port. Is <code>crux_server.exe</code> still running?
+      </div>
+
       <div id="panel-results" class="panel active">
         <div id="resultsBody">
-          <div class="empty-state">
-            Fill the form on the left and press <b>Run</b>.
+          <div class="empty">
+            <h3>No run yet</h3>
+            <p>Paste a YouTube URL on the left, tweak options as needed,
+               and press <b>Run</b>. Progress streams into the Log tab
+               while the video is being fetched, and results render here
+               as clips are cut.</p>
           </div>
         </div>
       </div>
+
       <div id="panel-log" class="panel">
-        <div id="logBody" class="log">(no runs yet)</div>
+        <div class="log-toolbar">
+          <span class="chip-btn active" data-filter="all">All</span>
+          <span class="chip-btn"        data-filter="step">Steps</span>
+          <span class="chip-btn"        data-filter="dl">Download</span>
+          <span class="chip-btn"        data-filter="cut">Cut</span>
+          <span class="chip-btn"        data-filter="warn">Warnings</span>
+          <span class="chip-btn"        data-filter="err">Errors</span>
+          <div style="flex:1"></div>
+          <label class="check" style="padding:0 8px">
+            <input type="checkbox" id="autoscroll" checked>
+            <span style="font-size:12px">Autoscroll</span>
+          </label>
+          <button type="button" class="chip-btn" id="copyLog">Copy log</button>
+        </div>
+        <div id="logBody" class="log">(no runs yet — start one from the sidebar)</div>
       </div>
     </div>
   </section>
@@ -235,24 +541,211 @@ button.primary:disabled { opacity: .5; cursor: not-allowed; }
 <script>
 "use strict";
 
+// ==========================================================================
+// Small utilities
+// ==========================================================================
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const debounce = (fn, ms) => {
+  let t = 0;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+};
+function extractVideoId(input) {
+  if (!input) return "";
+  const m1 = String(input).match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+  if (m1) return m1[1];
+  const m2 = String(input).match(/youtu\.be\/([A-Za-z0-9_-]{6,})/);
+  if (m2) return m2[1];
+  // 11-char id fallback
+  const m3 = String(input).trim().match(/^([A-Za-z0-9_-]{11})$/);
+  if (m3) return m3[1];
+  return "";
+}
+function fmtSec(t) {
+  t = Math.round(t);
+  const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
+  const pad = (n)=>String(n).padStart(2,"0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+function fmtDuration(sec) {
+  const s = Math.max(0, Math.round(sec));
+  if (s < 60) return s + "s";
+  const m = Math.floor(s/60), r = s%60;
+  if (m < 60) return `${m}m ${String(r).padStart(2,"0")}s`;
+  const h = Math.floor(m/60), rm = m%60;
+  return `${h}h ${String(rm).padStart(2,"0")}m`;
+}
+
+// ==========================================================================
+// App state
+// ==========================================================================
 const state = {
   currentJob: null,
   logFrom: 0,
   logPoller: null,
   jobPoller: null,
+  logLines: [],           // {text, kind}
+  filter: "all",
+  serverAlive: true,
+  runStartMs: 0,
 };
 
-// ---------- form ↔ ui state ----------
-$("maxClips").addEventListener("input", (e) => {
-  $("maxClipsValue").textContent = e.target.value;
-});
-$("clipLen").addEventListener("input", (e) => {
-  const v = +e.target.value;
-  $("clipLenValue").textContent = v === 0 ? "auto" : v + "s";
+// ==========================================================================
+// Presets
+// ==========================================================================
+const PRESETS = {
+  quick: {
+    maxClips: 3, format: "916blur", clipLen: 0, minGap: 0,
+    dryRun: false, dumpHeatmap: true,
+    keepIntro: false, strict: false, fullDownload: false, trySections: false,
+    verbose: false, cookies: "none", source: "ytdlp",
+  },
+  balanced: {
+    maxClips: 6, format: "916blur", clipLen: 0, minGap: 0,
+    dryRun: false, dumpHeatmap: true,
+    keepIntro: false, strict: false, fullDownload: false, trySections: false,
+    verbose: false, cookies: "none", source: "ytdlp",
+  },
+  podcast: {
+    maxClips: 6, format: "916blur", clipLen: 90, minGap: 0,
+    dryRun: false, dumpHeatmap: true,
+    keepIntro: false, strict: false, fullDownload: false, trySections: true,
+    verbose: false, cookies: "none", source: "ytdlp",
+  },
+  plan: {
+    maxClips: 6, format: "916blur", clipLen: 0, minGap: 0,
+    dryRun: true, dumpHeatmap: true,
+    keepIntro: false, strict: false, fullDownload: false, trySections: false,
+    verbose: false, cookies: "none", source: "ytdlp",
+  },
+};
+
+function applyPreset(name) {
+  const p = PRESETS[name]; if (!p) return;
+  $("maxClips").value = p.maxClips; onSliderChange();
+  $("format").value = p.format;
+  $("clipLen").value = p.clipLen;
+  $("minGap").value = p.minGap;
+  $("dryRun").checked = p.dryRun;
+  $("dumpHeatmap").checked = p.dumpHeatmap;
+  $("keepIntro").checked = p.keepIntro;
+  $("strict").checked = p.strict;
+  $("fullDownload").checked = p.fullDownload;
+  $("trySections").checked = p.trySections;
+  $("verbose").checked = p.verbose;
+  $("cookies").value = p.cookies;
+  $("source").value = p.source;
+  document.querySelectorAll(".preset").forEach(el =>
+    el.classList.toggle("active", el.dataset.preset === name));
+  onSliderChange();
+  updateCliPreview();
+}
+
+document.querySelectorAll(".preset").forEach(el => {
+  el.addEventListener("click", () => applyPreset(el.dataset.preset));
 });
 
-// tabs
+// ==========================================================================
+// Slider + URL updates
+// ==========================================================================
+function onSliderChange() {
+  $("maxClipsValue").textContent = $("maxClips").value;
+  const cl = +$("clipLen").value;
+  $("clipLenValue").textContent = cl === 0 ? "auto" : cl + "s";
+  const mg = +$("minGap").value;
+  $("minGapValue").textContent = mg === 0 ? "auto" : mg + "s";
+}
+$("maxClips").addEventListener("input", () => { onSliderChange(); updateCliPreview(); });
+$("clipLen").addEventListener("input",   () => { onSliderChange(); updateCliPreview(); });
+$("minGap").addEventListener("input",    () => { onSliderChange(); updateCliPreview(); });
+
+$("url").addEventListener("input", () => {
+  const id = extractVideoId($("url").value);
+  const chip = $("url-chip");
+  if (id) { chip.textContent = id; chip.classList.remove("hidden"); }
+  else    { chip.classList.add("hidden"); }
+  updateCliPreview();
+});
+
+// Everything else re-renders CLI on change.
+["format", "cookies", "source", "ytdlpPath", "ffmpegPath"].forEach(id => {
+  $(id).addEventListener("input",  updateCliPreview);
+  $(id).addEventListener("change", updateCliPreview);
+});
+["dryRun","dumpHeatmap","keepIntro","strict","fullDownload","trySections","verbose"].forEach(id => {
+  $(id).addEventListener("change", updateCliPreview);
+});
+
+// ==========================================================================
+// CLI preview
+// ==========================================================================
+function currentParams() {
+  const url = $("url").value.trim();
+  const p = {
+    url,
+    max_clips: +$("maxClips").value,
+    format: $("format").value,
+    cookies: $("cookies").value,
+    source: $("source").value,
+    dry_run: $("dryRun").checked,
+    dump_heatmap: $("dumpHeatmap").checked,
+    keep_intro: $("keepIntro").checked,
+    strict: $("strict").checked,
+    full_download: $("fullDownload").checked,
+    try_sections: $("trySections").checked,
+    verbose: $("verbose").checked,
+  };
+  const cl = +$("clipLen").value; if (cl > 0) p.clip_len = cl;
+  const mg = +$("minGap").value;  if (mg > 0) p.min_gap  = mg;
+  const y = $("ytdlpPath").value.trim();  if (y) p.ytdlp = y;
+  const f = $("ffmpegPath").value.trim(); if (f) p.ffmpeg = f;
+  return p;
+}
+
+function paramsToCli(p) {
+  const parts = ['run.bat', `"${p.url || '<URL>'}"`];
+  const flag = (f, v) => { parts.push(`<span class="flag">${f}</span>`); if (v !== undefined) parts.push(`<span class="val">${esc(v)}</span>`); };
+  if (p.max_clips !== 6) flag("--max-clips", p.max_clips);
+  if (p.format !== "916blur") flag("--format", p.format);
+  if (p.clip_len) flag("--clip-len", p.clip_len);
+  if (p.min_gap)  flag("--min-gap",  p.min_gap);
+  if (p.cookies && p.cookies !== "none") flag("--cookies-from-browser", p.cookies);
+  if (p.source && p.source !== "ytdlp")  flag("--source", p.source);
+  if (p.dry_run)       flag("--dry-run");
+  if (p.dump_heatmap)  flag("--dump-heatmap");
+  if (p.keep_intro)    flag("--keep-intro");
+  if (p.strict)        flag("--strict");
+  if (p.full_download) flag("--full-download");
+  if (p.try_sections)  flag("--try-sections");
+  if (p.verbose)       flag("--verbose");
+  if (p.ytdlp)  flag("--ytdlp",  `"${p.ytdlp}"`);
+  if (p.ffmpeg) flag("--ffmpeg", `"${p.ffmpeg}"`);
+  return parts.join(" ");
+}
+
+// Function DECLARATION (not `const`/`var`) — fully hoisted with body, so the
+// event listeners above that reference this by name resolve correctly at
+// registration time regardless of source order.
+let _updateCliTimer = 0;
+function updateCliPreview() {
+  clearTimeout(_updateCliTimer);
+  _updateCliTimer = setTimeout(function () {
+    $("cliText").innerHTML = paramsToCli(currentParams());
+  }, 200);
+}
+
+$("copyCli").addEventListener("click", () => {
+  const raw = $("cliText").innerText;
+  navigator.clipboard?.writeText(raw).then(() => {
+    const b = $("copyCli"); const old = b.textContent;
+    b.textContent = "copied"; setTimeout(() => b.textContent = old, 800);
+  });
+});
+
+// ==========================================================================
+// Tabs
+// ==========================================================================
 document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -262,64 +755,64 @@ document.querySelectorAll(".tab").forEach(tab => {
   });
 });
 
-// ---------- status pill ----------
+// ==========================================================================
+// Status pill
+// ==========================================================================
 function setStatus(kind, text) {
   const p = $("status-pill");
-  p.className = "status-pill " + kind;
-  $("status-text").textContent = text;
+  p.className = "status-pill" + (kind ? " " + kind : "");
+  $("status-text").textContent = text || "idle";
 }
 
-// ---------- run ----------
+// ==========================================================================
+// Run
+// ==========================================================================
 $("form").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const url = $("url").value.trim();
-  if (!url) return;
-  const payload = {
-    url,
-    max_clips: +$("maxClips").value,
-    format: $("format").value,
-    cookies: $("cookies").value,
-    dry_run: $("dryRun").checked,
-    dump_heatmap: $("dumpHeatmap").checked,
-    keep_intro: $("keepIntro").checked,
-    strict: $("strict").checked,
-    full_download: $("fullDownload").checked,
-  };
-  const clipLen = +$("clipLen").value;
-  if (clipLen > 0) payload.clip_len = clipLen;
+  const p = currentParams();
+  if (!p.url) { $("url").focus(); return; }
 
   $("runBtn").disabled = true;
-  setStatus("running", "starting...");
+  setStatus("working", "starting…");
   try {
     const r = await fetch("/api/run", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(payload),
+      body: JSON.stringify(p),
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || "run failed");
+    state.runStartMs = Date.now();
     attachJob(j.job_id);
     refreshJobList();
+    // Switch to Log tab so user sees streaming output.
+    document.querySelector('.tab[data-panel="log"]').click();
   } catch (err) {
     setStatus("err", "failed to start");
-    $("logBody").textContent = "error: " + err.message;
+    appendLog("error: " + err.message + "\n");
   } finally {
     $("runBtn").disabled = false;
   }
 });
 
-// ---------- job attach + poll ----------
+// ==========================================================================
+// Job attach + polling
+// ==========================================================================
 function attachJob(id) {
   if (state.logPoller) clearInterval(state.logPoller);
-  if (state.jobPoller) clearInterval(state.jobPoller);
   state.currentJob = id;
   state.logFrom = 0;
-  $("logBody").textContent = "";
-  $("resultsBody").innerHTML = `<div class="empty-state">Running… see the Log tab for live output.</div>`;
-  setStatus("running", "running " + id);
+  state.logLines = [];
+  renderLog();
+  $("resultsBody").innerHTML = `<div class="empty"><h3>Running…</h3>
+    <p>Live output is in the <b>Log</b> tab. Results render here as they're produced.</p></div>`;
+  setStatus("working", "running " + id);
 
-  const tickLog = async () => {
+  let interval = 400;
+  let lastPoll = 0;
+  const tick = async () => {
     if (!state.currentJob) return;
+    lastPoll = Date.now();
     try {
       const r = await fetch(`/api/jobs/${state.currentJob}/log?from=${state.logFrom}`);
       const j = await r.json();
@@ -327,46 +820,139 @@ function attachJob(id) {
         appendLog(j.chunk);
         state.logFrom = j.next;
       }
+      interval = 400;
+      inferStatusFromLog(j.done, j.exit_code);
       if (j.done) {
         clearInterval(state.logPoller);
         state.logPoller = null;
-        // final log flush
+        // final drain (in case last chunk got missed)
         if (j.next > state.logFrom) {
           const r2 = await fetch(`/api/jobs/${state.currentJob}/log?from=${state.logFrom}`);
           const j2 = await r2.json();
           if (j2.chunk) { appendLog(j2.chunk); state.logFrom = j2.next; }
         }
-        finishJob(j.exit_code);
+        await finishJob(j.exit_code);
       }
-    } catch (e) { /* transient, retry next tick */ }
+    } catch (e) {
+      interval = Math.min(2000, interval * 2);
+    }
   };
-  state.logPoller = setInterval(tickLog, 400);
-  tickLog();
+  state.logPoller = setInterval(tick, interval);
+  tick();
 }
 
-function appendLog(text) {
-  const el = $("logBody");
-  const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-  // Colorize a few well-known tokens.
-  const esc = (s) => s.replace(/[&<>]/g,
-    c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-  let html = esc(text);
-  html = html.replace(/\[(\d+)\/(\d+)\]/g, '<span class="prefix">[$1/$2]</span>');
-  html = html.replace(/\berror:/g, '<span class="err">error:</span>');
-  html = html.replace(/\bwarning:/g, '<span class="warn">warning:</span>');
-  html = html.replace(/\[warn\]/g, '<span class="warn">[warn]</span>');
-  html = html.replace(/\[ok\]/g, '<span class="ok">[ok]</span>');
-  el.insertAdjacentHTML("beforeend", html);
-  if (isBottom) el.scrollTop = el.scrollHeight;
+function inferStatusFromLog(done, code) {
+  if (done) return;
+  // Walk backwards to find the most recent [N/M] step marker or hint.
+  for (let i = state.logLines.length - 1; i >= 0; i--) {
+    const line = state.logLines[i].text;
+    const m = line.match(/\[(\d+)\/(\d+)\]\s+(.+?)(?: —|$)/);
+    if (m) {
+      const label = m[3].toLowerCase();
+      if (label.includes("fetching"))  return setStatus("working", "fetching heatmap");
+      if (label.includes("planning"))  return setStatus("working", "planning");
+      if (label.includes("download"))  return setStatus("working", "downloading");
+      if (label.includes("cutting"))   return setStatus("working", `cutting ${m[1]}/${m[2]}`);
+      return setStatus("working", label);
+    }
+  }
+  setStatus("working", "running");
 }
 
 async function finishJob(exit_code) {
-  if (exit_code === 0) setStatus("done", "done");
-  else                 setStatus("err", "exit " + exit_code);
+  const dur = fmtDuration((Date.now() - state.runStartMs) / 1000);
+  if (exit_code === 0) setStatus("done", `done in ${dur}`);
+  else                 setStatus("err",  `exit ${exit_code} (${dur})`);
   await renderResults();
 }
 
-// ---------- results ----------
+// ==========================================================================
+// Log rendering
+// ==========================================================================
+function classifyLine(line) {
+  if (/^\[\d+\/\d+\]/.test(line))     return "step";
+  if (/^\[download\]|^\[c\d+\]\s*\[download\]/i.test(line)) return "dl";
+  if (/Cutting clip|ffmpeg/i.test(line)) return "cut";
+  if (/\[warn\]|warning:/i.test(line)) return "warn";
+  if (/\berror:|\[error|FAILED|TIMEOUT/i.test(line)) return "err";
+  return "other";
+}
+
+function appendLog(text) {
+  // Split on newlines; keep partial line at end for next chunk.
+  const parts = text.split("\n");
+  for (let i = 0; i < parts.length; i++) {
+    const line = parts[i];
+    if (i === parts.length - 1 && line === "") continue;
+    state.logLines.push({ text: line, kind: classifyLine(line) });
+  }
+  renderLog(true);
+  $("logCount").textContent = state.logLines.length ? `(${state.logLines.length})` : "";
+}
+
+function renderLog(append) {
+  const el = $("logBody");
+  const autoscroll = $("autoscroll").checked;
+  const filter = state.filter;
+  const visible = (kind) => filter === "all" || filter === kind ||
+                             (filter === "err"  && kind === "err")  ||
+                             (filter === "warn" && kind === "warn");
+  const lines = state.logLines.map(({text, kind}) => {
+    const cls = visible(kind) ? "line " + kind : "line hidden";
+    return `<span class="${cls}">${colorize(text)}</span>`;
+  }).join("\n");
+  el.innerHTML = lines || "(no output yet)";
+  if (autoscroll) el.scrollTop = el.scrollHeight;
+}
+
+// Deterministic pastel color per worker tag [cNN]
+const workerColors = {};
+function workerColor(tag) {
+  if (workerColors[tag]) return workerColors[tag];
+  const palette = ["#ffa94d","#63e6be","#b197fc","#f783ac","#ffec99","#8ce99a","#74c0fc"];
+  const n = Object.keys(workerColors).length;
+  return (workerColors[tag] = palette[n % palette.length]);
+}
+
+function colorize(line) {
+  let html = esc(line);
+  // Worker prefix
+  html = html.replace(/^\[c(\d+)\]/, (m, num) => {
+    const tag = "c" + num;
+    return `<span class="tag" style="color:${workerColor(tag)}">[c${num}]</span>`;
+  });
+  // Step prefix
+  html = html.replace(/\[(\d+)\/(\d+)\]/g, '<span class="step">[$1/$2]</span>');
+  // Highlight keywords
+  html = html.replace(/\berror:/gi, '<span class="err">error:</span>');
+  html = html.replace(/\bwarning:/gi, '<span class="warn">warning:</span>');
+  html = html.replace(/\[warn\]/g, '<span class="warn">[warn]</span>');
+  html = html.replace(/\[ok\]/g,   '<span class="ok">[ok]</span>');
+  html = html.replace(/\bFAILED\b/g, '<span class="err">FAILED</span>');
+  html = html.replace(/\bTIMEOUT\b/g, '<span class="err">TIMEOUT</span>');
+  html = html.replace(/\bdone\b/g,   '<span class="ok">done</span>');
+  return html;
+}
+
+document.querySelectorAll(".chip-btn[data-filter]").forEach(el => {
+  el.addEventListener("click", () => {
+    document.querySelectorAll(".chip-btn[data-filter]").forEach(x => x.classList.remove("active"));
+    el.classList.add("active");
+    state.filter = el.dataset.filter;
+    renderLog();
+  });
+});
+$("copyLog").addEventListener("click", () => {
+  const text = state.logLines.map(l => l.text).join("\n");
+  navigator.clipboard?.writeText(text).then(() => {
+    const b = $("copyLog"); const old = b.textContent;
+    b.textContent = "copied"; setTimeout(() => b.textContent = old, 800);
+  });
+});
+
+// ==========================================================================
+// Results rendering
+// ==========================================================================
 async function renderResults() {
   const id = state.currentJob;
   const body = $("resultsBody");
@@ -376,9 +962,9 @@ async function renderResults() {
     if (r.ok) manifest = await r.json();
   } catch (e) {}
   if (!manifest) {
-    body.innerHTML = `<div class="empty-state">
-      Job finished, but no manifest.json was produced. See the Log tab for details.
-    </div>`;
+    body.innerHTML = `<div class="empty"><h3>No manifest</h3>
+      <p>Job finished but no <code>manifest.json</code> was produced.
+         Check the Log tab for details.</p></div>`;
     return;
   }
   let heatmap = null;
@@ -389,115 +975,140 @@ async function renderResults() {
 
   const v = manifest.video || {};
   const q = manifest.quality || {};
+  const params = manifest.params || {};
   const clips = manifest.clips || [];
 
   let html = `
-    <div class="videometa">
+    <div class="card">
       <div class="title">${esc(v.title || v.id || "?")}</div>
-      <div class="row2">
-        ${esc(v.channel || "")} · ${fmtSec(v.duration || 0)} ·
-        max/med ${(q.maxOverMedian || 0).toFixed(2)}${q.flat ? ' <span class="warn">(flat)</span>' : ''}
-        · <a href="${esc(v.url || '#')}" target="_blank">source</a>
+      <div class="meta-row" style="margin-top:6px">
+        <span>${esc(v.channel || "channel unknown")}</span>
+        <span>·  ${fmtSec(v.duration || 0)}</span>
+        <span class="chip">max/med ${(q.maxOverMedian || 0).toFixed(2)}</span>
+        ${q.flat ? '<span class="chip warn">flat profile</span>' : ''}
+        <span class="chip">${esc(params.format || "?")}</span>
+        <span class="chip">source: ${esc(params.source || "?")}</span>
+        ${v.url ? `<a href="${esc(v.url)}" target="_blank">source</a>` : ""}
       </div>
-    </div>
-  `;
+    </div>`;
 
   if (heatmap && heatmap.bins) {
     html += renderSparkline(heatmap.bins, clips);
   }
 
   if (clips.length === 0) {
-    html += `<div class="empty-state">No clips were produced.</div>`;
+    html += `<div class="empty">No clips were produced.</div>`;
   } else {
     html += `<div class="clip-grid">`;
     for (const c of clips) {
       const src = `/api/jobs/${id}/file/${encodeURIComponent(c.file)}`;
+      const showVideo = !(manifest.params && manifest.params.dry_run);
       html += `
         <div class="clip">
-          ${manifest.params && manifest.params.dry_run ? '' :
-            `<video controls preload="metadata" src="${src}"></video>`}
-          <div class="meta">
-            <div class="title">#${c.index} — ${fmtSec(c.start)} → ${fmtSec(c.end)}</div>
-            <div class="row2">
-              <span>bin ${c.peakBin} · peak ${(c.peakScore||0).toFixed(2)}</span>
-              <code>${(c.duration||0).toFixed(1)}s</code>
-            </div>
-            ${c.label ? `<div class="row2"><span>${esc(c.label)}</span></div>` : ''}
-            <a class="download" href="${src}" download>Download ${esc(c.file)}</a>
+          ${showVideo ? `<video controls preload="metadata" src="${src}"></video>` : ""}
+          <div class="body">
+            <div class="n">#${c.index} — ${fmtSec(c.start)} → ${fmtSec(c.end)}</div>
+            <div class="r"><span>bin ${c.peakBin} · peak ${(c.peakScore||0).toFixed(2)}</span>
+                          <code>${(c.duration||0).toFixed(1)}s</code></div>
+            ${c.label ? `<div class="label">${esc(c.label)}</div>` : ""}
+            <a class="dl" href="${src}" download>Download ${esc(c.file)}</a>
           </div>
         </div>`;
     }
     html += `</div>`;
   }
-
   body.innerHTML = html;
 }
 
 function renderSparkline(bins, clips) {
-  const W = 780, H = 74, PAD = 4;
-  const bw = (W - PAD * 2) / bins.length;
-  let bars = "";
+  const W = 900, H = 84, PAD = 4;
+  const bw = (W - PAD*2) / bins.length;
   const maxV = Math.max(0.01, ...bins.map(b => b.value || 0));
+  let bars = "";
   for (let i = 0; i < bins.length; i++) {
     const v = bins[i].value || 0;
     const h = (v / maxV) * (H - 12);
-    bars += `<rect x="${PAD + i*bw}" y="${H - h - 2}" width="${bw - 0.5}" height="${h}" fill="#4dabf7" fill-opacity="${0.3 + 0.7 * v}"/>`;
+    const x = PAD + i * bw;
+    bars += `<rect x="${x.toFixed(2)}" y="${(H - h - 2).toFixed(2)}" width="${(bw - 0.5).toFixed(2)}" height="${h.toFixed(2)}" fill="#4dabf7" fill-opacity="${(0.3 + 0.7 * v).toFixed(2)}"/>`;
   }
-  // overlays for clip windows
-  const dur = bins.length * (bins[0] ? (bins[0].end - bins[0].start) : 1);
+  const durSec = bins.length * (bins[0] ? (bins[0].end - bins[0].start) : 1);
   let bands = "";
   for (const c of clips) {
-    const x1 = PAD + (c.start / dur) * (W - PAD*2);
-    const x2 = PAD + (c.end   / dur) * (W - PAD*2);
-    bands += `<rect x="${x1}" y="2" width="${x2 - x1}" height="${H - 4}"
-                fill="#f59f00" fill-opacity="0.10" stroke="#f59f00" stroke-opacity="0.55"/>
-              <text x="${(x1+x2)/2}" y="10" font-size="10" fill="#f59f00"
+    const x1 = PAD + (c.start / durSec) * (W - PAD*2);
+    const x2 = PAD + (c.end   / durSec) * (W - PAD*2);
+    bands += `<rect x="${x1.toFixed(2)}" y="2" width="${(x2 - x1).toFixed(2)}" height="${H - 4}"
+                fill="#f59f00" fill-opacity="0.12" stroke="#f59f00" stroke-opacity="0.6"/>
+              <text x="${((x1+x2)/2).toFixed(2)}" y="12" font-size="10" fill="#f59f00"
                 text-anchor="middle" font-family="ui-monospace">${c.index}</text>`;
   }
   return `
-    <div class="sparkline">
+    <div class="card sparkline">
       <div class="head">
-        <span>Heatmap (100 bins)</span>
-        <span>peak scale: 0.0–${maxV.toFixed(2)}</span>
+        <span>Heatmap (100 bins) — orange bands mark clip windows</span>
+        <span>peak: 0.0 – ${maxV.toFixed(2)}</span>
       </div>
-      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-        ${bars}${bands}
-      </svg>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${bars}${bands}</svg>
     </div>`;
 }
 
-function esc(s) { return String(s).replace(/[&<>"]/g,
-    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function fmtSec(t) {
-  t = Math.round(t);
-  const h = Math.floor(t/3600), m = Math.floor((t%3600)/60), s = t%60;
-  const pad = (n)=>String(n).padStart(2,"0");
-  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
-}
-
-// ---------- job list ----------
+// ==========================================================================
+// Recent runs list
+// ==========================================================================
 async function refreshJobList() {
   try {
     const r = await fetch("/api/jobs");
     const j = await r.json();
-    const html = j.jobs.map(job => `
-      <div class="item ${job.id === state.currentJob ? 'active' : ''}" data-id="${esc(job.id)}">
-        <div>${esc(shortUrl(job.url))}</div>
-        <div class="id">${esc(job.id)} · ${job.done ? (job.exit_code === 0 ? 'ok' : 'exit ' + job.exit_code) : 'running'}</div>
-      </div>`).join("");
-    $("jobList").innerHTML = html || `<div style="color:var(--muted); font-size:12px">nothing yet</div>`;
+    if (!Array.isArray(j.jobs) || j.jobs.length === 0) {
+      $("jobList").innerHTML = `<div class="empty">nothing yet</div>`;
+      return;
+    }
+    $("jobList").innerHTML = j.jobs.map(job => {
+      const stateCls = job.done ? (job.exit_code === 0 ? "ok" : "err") : "";
+      const stateLbl = job.done ? (job.exit_code === 0 ? "ok" : "exit " + job.exit_code) : "running";
+      return `
+        <div class="item ${job.id === state.currentJob ? 'active' : ''}" data-id="${esc(job.id)}">
+          <div>${esc(shortLabel(job.url))}</div>
+          <div class="id">${esc(job.id)} · <span class="state ${stateCls}">${stateLbl}</span></div>
+        </div>`;
+    }).join("");
     $("jobList").querySelectorAll(".item").forEach(el => {
       el.addEventListener("click", () => attachJob(el.dataset.id));
     });
-  } catch (e) {}
+  } catch (e) { /* stale banner will cover this */ }
 }
-function shortUrl(u) {
-  const m = String(u).match(/[?&]v=([A-Za-z0-9_-]{6,})/);
-  if (m) return "youtube: " + m[1];
-  return u.length > 42 ? u.slice(0, 40) + "…" : u;
+function shortLabel(u) {
+  const id = extractVideoId(u);
+  if (id) return "yt: " + id;
+  return u.length > 40 ? u.slice(0, 38) + "…" : u;
 }
-setInterval(refreshJobList, 3000);
+setInterval(refreshJobList, 3500);
+
+// ==========================================================================
+// Server heartbeat
+// ==========================================================================
+async function heartbeat() {
+  try {
+    const r = await fetch("/api/info", { cache: "no-store" });
+    if (!r.ok) throw new Error();
+    if (!state.serverAlive) {
+      state.serverAlive = true;
+      $("staleBanner").classList.remove("show");
+    }
+  } catch (e) {
+    if (state.serverAlive) {
+      state.serverAlive = false;
+      $("staleBanner").classList.add("show");
+    }
+  }
+}
+setInterval(heartbeat, 5000);
+
+// ==========================================================================
+// Init
+// ==========================================================================
+applyPreset("balanced");
 refreshJobList();
+heartbeat();
 </script>
 </body>
 </html>

@@ -124,35 +124,77 @@ std::string locate_crux_exe(const std::optional<std::string>& override_path) {
 
 // ---------- Argument building ----------
 
+// Small helpers to keep the mapping table readable.
+namespace pta {
+    inline bool is_nonempty_str(const json& p, const std::string& k) {
+        return p.contains(k) && p[k].is_string() && !p[k].get<std::string>().empty();
+    }
+    inline bool is_number(const json& p, const std::string& k) {
+        return p.contains(k) && p[k].is_number();
+    }
+    inline std::string trim_num(double d) {
+        // Compact numeric formatting: drop trailing zeros for cleaner CLI logs.
+        std::ostringstream oss;
+        oss.precision(6);
+        oss << d;
+        return oss.str();
+    }
+}
+
 std::vector<std::string> params_to_args(const json& p) {
     std::vector<std::string> args;
 
-    // Positional URL / id is passed by caller before params.
-    if (p.contains("max_clips") && p["max_clips"].is_number()) {
+    // Positional URL / id is passed by caller BEFORE these params.
+
+    // -- selection --
+    if (pta::is_number(p, "max_clips")) {
         args.push_back("-n");
         args.push_back(std::to_string(p["max_clips"].get<int>()));
     }
-    if (p.contains("clip_len") && p["clip_len"].is_number()) {
+    if (pta::is_number(p, "clip_len") && p["clip_len"].get<double>() > 0) {
         args.push_back("-l");
-        args.push_back(std::to_string(p["clip_len"].get<double>()));
+        args.push_back(pta::trim_num(p["clip_len"].get<double>()));
     }
-    if (p.contains("format") && p["format"].is_string() &&
-        !p["format"].get<std::string>().empty()) {
+    if (pta::is_number(p, "min_gap") && p["min_gap"].get<double>() > 0) {
+        args.push_back("--min-gap");
+        args.push_back(pta::trim_num(p["min_gap"].get<double>()));
+    }
+
+    // -- output format --
+    if (pta::is_nonempty_str(p, "format")) {
         args.push_back("--format");
         args.push_back(p["format"].get<std::string>());
     }
-    if (p.contains("cookies") && p["cookies"].is_string() &&
-        !p["cookies"].get<std::string>().empty() &&
-        p["cookies"].get<std::string>() != "none") {
+
+    // -- fetch source + cookies --
+    if (pta::is_nonempty_str(p, "cookies") && p["cookies"].get<std::string>() != "none") {
         args.push_back("--cookies-from-browser");
         args.push_back(p["cookies"].get<std::string>());
     }
-    if (p.value("dry_run",      false)) args.push_back("--dry-run");
-    if (p.value("dump_heatmap", true))  args.push_back("--dump-heatmap");
-    if (p.value("keep_intro",   false)) args.push_back("--keep-intro");
-    if (p.value("strict",       false)) args.push_back("--strict");
-    if (p.value("full_download",false)) args.push_back("--full-download");
-    if (p.value("verbose",      false)) args.push_back("--verbose");
+    if (pta::is_nonempty_str(p, "source") && p["source"].get<std::string>() != "ytdlp") {
+        args.push_back("--source");
+        args.push_back(p["source"].get<std::string>());
+    }
+
+    // -- binary overrides --
+    if (pta::is_nonempty_str(p, "ytdlp")) {
+        args.push_back("--ytdlp");
+        args.push_back(p["ytdlp"].get<std::string>());
+    }
+    if (pta::is_nonempty_str(p, "ffmpeg")) {
+        args.push_back("--ffmpeg");
+        args.push_back(p["ffmpeg"].get<std::string>());
+    }
+
+    // -- boolean flags (default false unless noted) --
+    if (p.value("dry_run",       false)) args.push_back("--dry-run");
+    if (p.value("dump_heatmap",  true )) args.push_back("--dump-heatmap");
+    if (p.value("keep_intro",    false)) args.push_back("--keep-intro");
+    if (p.value("strict",        false)) args.push_back("--strict");
+    if (p.value("full_download", false)) args.push_back("--full-download");
+    if (p.value("try_sections",  false)) args.push_back("--try-sections");
+    if (p.value("verbose",       false)) args.push_back("--verbose");
+
     return args;
 }
 

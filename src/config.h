@@ -43,6 +43,14 @@ struct Config {
 
     // Media pipeline
     bool full_download = false;
+    // Opt-in to parallel per-clip section downloads. Default OFF because
+    // yt-dlp's --download-sections is unreliable for the DASH streams
+    // YouTube serves for HD H.264: workers stall after emitting "Destination"
+    // with no error, no progress. Full download is the reliable path.
+    // Users on slow connections downloading tiny clips from very long videos
+    // may still want to try this; hard per-worker timeout guards against
+    // indefinite hangs.
+    bool try_sections = false;
 
     // Flow controls
     bool dry_run = false;

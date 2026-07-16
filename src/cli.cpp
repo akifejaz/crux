@@ -56,7 +56,8 @@ CliResult parse_cli(int argc, char** argv) {
     app.add_flag("--json",          c.json_stdout,   "Machine-readable stdout");
     app.add_flag("--keep-intro",    c.keep_intro,    "Keep intro bins in candidacy");
     app.add_flag("--strict",        c.strict,        "Exit 6 on flat heatmap");
-    app.add_flag("--full-download", c.full_download, "Download the entire video (skip sections)");
+    app.add_flag("--full-download", c.full_download, "Force full video download (default when not opting into --try-sections)");
+    app.add_flag("--try-sections",  c.try_sections,  "Opt-in: parallel per-clip section downloads (unreliable for YouTube DASH; hard 5-min timeout per worker)");
     app.add_flag("-v,--verbose",    c.verbose,       "Verbose logging");
 
     try {

@@ -157,8 +157,25 @@ int run_pipeline(const Config& cfg_in) {
     // Download + cut.
     std::string work_dir = (fs::path(cfg.out_dir) / "work").string();
     media::DownloadResult dl;
-    say("Downloading source video via yt-dlp (%.0fs total)",
-        fr.video.duration_sec);
+    // Ask the downloader what strategy it will use so we can tell the user.
+    auto planned = media::pick_strategy(fr.video, plan.clips, cfg);
+    switch (planned) {
+    case media::Strategy::PerClipParallel: {
+        double sum = 0.0;
+        for (const auto& c : plan.clips) sum += c.end_sec - c.start_sec;
+        say("Downloading %zu clip(s) in parallel via yt-dlp (~%.0fs of %.0fs) "
+            "[--try-sections opt-in; may fall back to full download]",
+            plan.clips.size(), sum, fr.video.duration_sec);
+        break;
+    }
+    case media::Strategy::LegacySections:
+    case media::Strategy::Full:
+    default:
+        say("Downloading full source video via yt-dlp (%.0fs) "
+            "[reliable path; pass --try-sections to opt into per-clip mode]",
+            fr.video.duration_sec);
+        break;
+    }
     try {
         dl = media::download(fr.video.url.empty() ? cfg.url_or_id : fr.video.url,
                              fr.video, plan.clips, cfg, work_dir);

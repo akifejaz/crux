@@ -45,5 +45,14 @@ if not exist build (
     "%CMAKE_CMD%" -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5 || exit /b 1
 )
 
+REM Kill any lingering crux processes so MSBuild can overwrite the .exe files.
+REM A stuck download from a previous run holds crux.exe locked and causes
+REM LNK1104 "cannot open file". Silence errors when no process is running.
+taskkill /F /IM crux.exe        >nul 2>&1
+taskkill /F /IM crux_server.exe >nul 2>&1
+taskkill /F /IM crux_tests.exe  >nul 2>&1
+taskkill /F /IM yt-dlp.exe      >nul 2>&1
+taskkill /F /IM ffmpeg.exe      >nul 2>&1
+
 "%CMAKE_CMD%" --build build --config %CFG% --parallel
 exit /b %errorlevel%

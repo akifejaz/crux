@@ -47,6 +47,9 @@ void write_manifest(const std::string& dir,
         {"clip_len",  cfg.clip_len ? *cfg.clip_len : 0.0},
         {"min_gap",   cfg.min_gap  ? *cfg.min_gap  : 0.0},
         {"source",    cfg.source == SourceKind::Native ? "native" : "ytdlp"},
+        {"dry_run",   cfg.dry_run},
+        {"full_download", cfg.full_download},
+        {"try_sections",  cfg.try_sections},
     };
     j["heatmapPresent"] = heatmap_present;
     j["quality"] = {

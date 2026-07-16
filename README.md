@@ -121,6 +121,49 @@ card per clip with an inline `<video>` preview and a download link.
 Every run lives under `out\web-<timestamp>\` and shows up in the sidebar
 so you can jump back to it later.
 
+### Screenshots
+
+_Captured from a real run: `https://www.youtube.com/watch?v=fHBR1j1kJ1I`
+(Raj Shamani × Dr Sweta, 1h 45m 09s), Quick preset (3 clips, 916blur),
+13-minute end-to-end wall clock on a home connection._
+
+**1 · Idle, form ready.** URL pasted, id chip (`fHBR1j1kJ1I`) auto-appears,
+Plan-only preset selected, live CLI preview shows the exact `run.bat`
+invocation with colored flags.
+![Dashboard idle](docs/screenshots/01-idle-form.png)
+
+**2 · Results tab, top.** After a successful run the video meta card,
+heatmap sparkline (100 blue bars) and clip windows (numbered amber bands
+over the peaks) render together. The pill in the top-right shows
+`done in 13m 00s`.
+![Results — video + heatmap](docs/screenshots/02-results-heatmap.png)
+
+**3 · Results tab, clip grid.** Each of the 3 clips has an inline
+`<video>` preview at the actual 1080×1920 9:16 blurred-bar frame the tool
+produced, plus start / end timestamps and a download link.
+![Results — clip grid](docs/screenshots/03-results-clips.png)
+
+**4 · Log tab, live.** ffmpeg's frame counter, bitrate, encoding speed
+and elapsed time stream in real time. Filter chips (All / Steps /
+Download / Cut / Warnings / Errors) narrow the view;
+`[c01]..[cNN]` worker prefixes each get their own color when parallel
+mode is engaged.
+![Log — live encoding](docs/screenshots/04-log-live.png)
+
+**5 · Advanced options.** Every CLI flag is exposed under the collapsible
+Advanced pane — clip length, min gap, cookies-from-browser, heatmap
+source, dry-run, keep-intro, strict, full-download, try-sections,
+verbose, and yt-dlp/ffmpeg path overrides. Tweaking any of them
+updates the CLI preview live.
+![Advanced options](docs/screenshots/05-advanced-options.png)
+
+> Drop `.png` files at the paths above and they'll show up on GitHub
+> automatically — nothing about `docs/screenshots/` is gitignored.
+> To reproduce these shots: launch `.\dashboard.bat`, follow the flow
+> above, and use `Win + Shift + S` on each view.
+
+### Server endpoints
+
 If you want to script the server, the endpoints are:
 
 | Endpoint | Purpose |
