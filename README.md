@@ -2,7 +2,7 @@
 
 <img src="dashboard/logo.svg" width="72" height="72" align="right" alt="">
 
-[![CI](https://github.com/OWNER/crux/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/crux/actions/workflows/ci.yml)
+[![CI](https://github.com/akifejaz/crux/actions/workflows/ci.yml/badge.svg)](https://github.com/akifejaz/crux/actions/workflows/ci.yml)
 
 Crux pulls the most-replayed part out of a long video and turns it into a
 short vertical clip you can drop into Shorts, Reels, or TikTok.
@@ -54,7 +54,7 @@ the setup script.
 ## Windows quickstart
 
 ```
-git clone <your-fork-url> crux
+git clone https://github.com/akifejaz/crux.git
 cd crux
 .\setup.bat
 ```
@@ -89,7 +89,7 @@ After editing code:
 ## Linux quickstart
 
 ```
-git clone <your-fork-url> crux
+git clone https://github.com/akifejaz/crux.git
 cd crux
 
 mkdir -p third_party/bin
@@ -252,8 +252,6 @@ crux/
 │  └─ fixtures/                5 heatmap fixtures + a sample yt-dlp JSON
 ├─ third_party/bin/        yt-dlp + ffmpeg binaries (gitignored)
 ├─ out/                    Generated clips + manifests (gitignored)
-├─ PLAN.md
-├─ FINDINGS.md
 ├─ LICENSE
 └─ README.md
 ```
@@ -308,44 +306,6 @@ g++ -std=c++20 -Isrc tests/standalone_verify.cpp \
 ```
 
 Expected: `=== ALL PASSED (0 failures) ===`.
-
-### Continuous integration
-
-`.github/workflows/ci.yml` runs the same four layers on both
-**ubuntu-latest** and **windows-latest** for every push and pull request.
-Steps:
-
-1. Show tool versions
-2. Cache `build/_deps` (CLI11, nlohmann-json, spdlog, doctest, cpp-httplib)
-3. Configure + build Release
-4. `ctest` (unit tests + standalone verifier)
-5. Executable smoke — `--version`, `--help`, missing/bogus URL
-6. Dashboard server smoke — start `crux_server`, curl 6 endpoints, kill
-
-Release binaries are uploaded as workflow artifacts on green builds.
-
-To make the badge above render, replace `OWNER` in the README with your
-GitHub username or org after the first push.
-
-### Adding a fixture
-
-Append the video to the table in `FINDINGS.md` §2 and
-paste the scores array into `tests/fixtures/heatmap_scores.json`. Get
-the array with:
-
-```
-yt-dlp --skip-download --dump-single-json "https://youtu.be/<id>" | jq '.heatmap'
-```
-
-There's a `.clang-format` at the repo root; run `clang-format -i` on
-files you touch.
-
-If the tool's behavior drifts from `PLAN.md`, trust the measured
-reality, update `FINDINGS.md`, and note the deviation in the commit.
-The defaults in PLAN.md §4 are not constants — they all live in the
-`Config` struct.
-
----
 
 ## Legal
 
