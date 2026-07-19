@@ -142,6 +142,16 @@ If you want to script the server, the endpoints are:
 ```
 crux <url|video-id> [options]
 
+Detection
+      --detect MODE              fused (default) | heatmap | captions
+                                 fused blends the replay heatmap with the
+                                 caption crux scorer (0.6/0.4); captions alone
+                                 rescue videos that have no heatmap
+      --no-captions              alias for --detect heatmap
+      --captions-langs LANGS     subtitle languages to try, yt-dlp syntax
+                                 (default hi,ur,en,en-orig)
+      --caption-weight W         caption share in fused mode, 0..1 (default 0.4)
+
 Selection
   -n, --max-clips N              default 6, cap 10
   -l, --clip-len SEC             default auto = clamp(1.5·binS, 40, 90); cap 180

@@ -433,6 +433,15 @@ details.adv .adv-body { padding: 6px 12px 12px; }
             </div>
           </div>
 
+          <div class="field">
+            <label class="k">Detection</label>
+            <select id="detect">
+              <option value="fused">Fused — heatmap + captions (default)</option>
+              <option value="heatmap">Heatmap only</option>
+              <option value="captions">Captions only</option>
+            </select>
+          </div>
+
           <div class="row2">
             <div class="field">
               <label class="k">Cookies from</label>
@@ -599,25 +608,25 @@ const PRESETS = {
     maxClips: 3, format: "916blur", clipLen: 0, minGap: 0,
     dryRun: false, dumpHeatmap: true,
     keepIntro: false, strict: false, fullDownload: false, trySections: false,
-    verbose: false, cookies: "none", source: "ytdlp",
+    verbose: false, cookies: "none", source: "ytdlp", detect: "fused",
   },
   balanced: {
     maxClips: 6, format: "916blur", clipLen: 0, minGap: 0,
     dryRun: false, dumpHeatmap: true,
     keepIntro: false, strict: false, fullDownload: false, trySections: false,
-    verbose: false, cookies: "none", source: "ytdlp",
+    verbose: false, cookies: "none", source: "ytdlp", detect: "fused",
   },
   podcast: {
     maxClips: 6, format: "916blur", clipLen: 90, minGap: 0,
     dryRun: false, dumpHeatmap: true,
     keepIntro: false, strict: false, fullDownload: false, trySections: true,
-    verbose: false, cookies: "none", source: "ytdlp",
+    verbose: false, cookies: "none", source: "ytdlp", detect: "fused",
   },
   plan: {
     maxClips: 6, format: "916blur", clipLen: 0, minGap: 0,
     dryRun: true, dumpHeatmap: true,
     keepIntro: false, strict: false, fullDownload: false, trySections: false,
-    verbose: false, cookies: "none", source: "ytdlp",
+    verbose: false, cookies: "none", source: "ytdlp", detect: "fused",
   },
 };
 
@@ -636,6 +645,7 @@ function applyPreset(name) {
   $("verbose").checked = p.verbose;
   $("cookies").value = p.cookies;
   $("source").value = p.source;
+  $("detect").value = p.detect || "fused";
   document.querySelectorAll(".preset").forEach(el =>
     el.classList.toggle("active", el.dataset.preset === name));
   onSliderChange();
@@ -669,7 +679,7 @@ $("url").addEventListener("input", () => {
 });
 
 // Everything else re-renders CLI on change.
-["format", "cookies", "source", "ytdlpPath", "ffmpegPath"].forEach(id => {
+["format", "cookies", "source", "detect", "ytdlpPath", "ffmpegPath"].forEach(id => {
   $(id).addEventListener("input",  updateCliPreview);
   $(id).addEventListener("change", updateCliPreview);
 });
@@ -688,6 +698,7 @@ function currentParams() {
     format: $("format").value,
     cookies: $("cookies").value,
     source: $("source").value,
+    detect: $("detect").value,
     dry_run: $("dryRun").checked,
     dump_heatmap: $("dumpHeatmap").checked,
     keep_intro: $("keepIntro").checked,
@@ -712,6 +723,7 @@ function paramsToCli(p) {
   if (p.min_gap)  flag("--min-gap",  p.min_gap);
   if (p.cookies && p.cookies !== "none") flag("--cookies-from-browser", p.cookies);
   if (p.source && p.source !== "ytdlp")  flag("--source", p.source);
+  if (p.detect && p.detect !== "fused")  flag("--detect", p.detect);
   if (p.dry_run)       flag("--dry-run");
   if (p.dump_heatmap)  flag("--dump-heatmap");
   if (p.keep_intro)    flag("--keep-intro");

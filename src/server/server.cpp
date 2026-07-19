@@ -175,6 +175,10 @@ std::vector<std::string> params_to_args(const json& p) {
         args.push_back("--source");
         args.push_back(p["source"].get<std::string>());
     }
+    if (pta::is_nonempty_str(p, "detect") && p["detect"].get<std::string>() != "fused") {
+        args.push_back("--detect");
+        args.push_back(p["detect"].get<std::string>());
+    }
 
     // -- binary overrides --
     if (pta::is_nonempty_str(p, "ytdlp")) {

@@ -51,6 +51,17 @@ CliResult parse_cli(int argc, char** argv) {
     auto* ytdlp_opt  = app.add_option("--ytdlp",  ytdlp_path,  "Path to yt-dlp binary");
     auto* ffmpeg_opt = app.add_option("--ffmpeg", ffmpeg_path, "Path to ffmpeg binary");
 
+    std::string detect_str = "fused";
+    app.add_option("--detect", detect_str,
+        "Detection signal: fused (heatmap + captions, default) | heatmap | captions")
+        ->check(CLI::IsMember({"fused", "heatmap", "captions"}));
+    app.add_flag("--no-captions",   c.no_captions,   "Alias for --detect heatmap");
+    app.add_option("--captions-langs", c.captions_langs,
+        "Subtitle languages to try, yt-dlp syntax (default hi,ur,en,en-orig)");
+    app.add_option("--caption-weight", c.caption_weight,
+        "Caption share in heatmap fusion 0..1 (default 0.4)")
+        ->check(CLI::Range(0.0, 1.0));
+
     app.add_flag("--dry-run",       c.dry_run,       "Plan only (no download)");
     app.add_flag("--dump-heatmap",  c.dump_heatmap,  "Write heatmap.json + ASCII sparkline");
     app.add_flag("--json",          c.json_stdout,   "Machine-readable stdout");
@@ -84,6 +95,11 @@ CliResult parse_cli(int argc, char** argv) {
     else if (fmt_str == "orig")    c.format = Format::Orig;
 
     c.source = (source_str == "native") ? SourceKind::Native : SourceKind::Ytdlp;
+
+    if      (detect_str == "heatmap")  c.detect = DetectMode::Heatmap;
+    else if (detect_str == "captions") c.detect = DetectMode::Captions;
+    else                               c.detect = DetectMode::Fused;
+    if (c.no_captions) c.detect = DetectMode::Heatmap;
 
     r.should_run = true;
     return r;

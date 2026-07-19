@@ -90,7 +90,11 @@ endif()
 add_library(crux_core STATIC
     src/core/detector.cpp
     src/core/planner.cpp
+    src/core/caption_parse.cpp
+    src/core/caption_lexicon.cpp
+    src/core/caption_scorer.cpp
     src/fetch/ytdlp_source.cpp
+    src/fetch/subs.cpp
     src/fetch/parse.cpp
     src/media/proc.cpp
     src/media/downloader.cpp
@@ -142,6 +146,7 @@ add_executable(crux_tests
     tests/manifest_test.cpp
     tests/proc_test.cpp
     tests/downloader_strategy_test.cpp
+    tests/captions_test.cpp
 )
 target_link_libraries(crux_tests PRIVATE crux_core doctest::doctest)
 target_compile_definitions(crux_tests PRIVATE

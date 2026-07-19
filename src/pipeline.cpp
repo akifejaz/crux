@@ -2,7 +2,10 @@
 
 #include "core/detector.h"
 #include "core/planner.h"
+#include "core/caption_parse.h"
+#include "core/caption_scorer.h"
 #include "fetch/source.h"
+#include "fetch/subs.h"
 #include "media/cutter.h"
 #include "media/downloader.h"
 #include "media/silence.h"
@@ -13,6 +16,7 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <stdexcept>
 
@@ -34,6 +38,59 @@ std::string clip_filename(const Clip& c, Format /*fmt*/) {
     char buf[64];
     std::snprintf(buf, sizeof(buf), "clip_%02d_%02d%02d%02d.mp4", c.index, h, m, s);
     return buf;
+}
+
+std::string read_file(const std::string& path) {
+    std::ifstream in(path, std::ios::binary);
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    return ss.str();
+}
+
+// Writes captions.json (candidate list + fusion mode) next to manifest.json.
+void write_captions_json(const std::string& dir, const std::string& lang,
+                         const std::string& mode, double weight,
+                         const CaptionScore& cs) {
+    json j;
+    j["lang"] = lang;
+    j["mode"] = mode;               // "fused" | "caption-only" | "off"
+    j["weight"] = weight;
+    j["candidates"] = json::array();
+    for (const auto& c : cs.candidates) {
+        j["candidates"].push_back({
+            {"start_sec", c.start_sec},
+            {"end_sec", c.end_sec},
+            {"score", c.score},
+            {"hook", c.hook_text},
+            {"four_beat", c.four_beat},
+            {"cold_open_match", c.cold_open_match},
+            {"signals", c.signals},
+        });
+    }
+    std::ofstream out(fs::path(dir) / "captions.json", std::ios::binary);
+    out << j.dump(2) << "\n";
+}
+
+void print_caption_candidates(const CaptionScore& cs) {
+    std::printf("\ncaption crux candidates (tier-1 scorer):\n");
+    std::printf("%-3s  %-10s  %-10s  %-7s  %-4s  %-4s  %s\n",
+                "#", "start", "end", "score", "4bt", "cold", "hook");
+    int i = 0;
+    for (const auto& c : cs.candidates) {
+        auto hms = [](double t) {
+            int T = static_cast<int>(t + 0.5);
+            char b[16];
+            std::snprintf(b, sizeof(b), "%02d:%02d:%02d",
+                          T / 3600, (T % 3600) / 60, T % 60);
+            return std::string(b);
+        };
+        std::string hook = c.hook_text.substr(0, 72);
+        std::printf("%-3d  %-10s  %-10s  %-7.1f  %-4s  %-4s  %s\n",
+                    ++i, hms(c.start_sec).c_str(), hms(c.end_sec).c_str(),
+                    c.score, c.four_beat ? "yes" : "-",
+                    c.cold_open_match ? "yes" : "-", hook.c_str());
+    }
+    std::printf("\n");
 }
 
 void print_dry_run_table(const Plan& p, const VideoMeta& v, const Heatmap& h) {
@@ -71,7 +128,10 @@ int run_pipeline(const Config& cfg_in) {
     //   2) detect + plan
     //   3) download                 (skipped for --dry-run)
     //   4..3+N) cut each clip (N clips)
-    int total_steps = cfg.dry_run ? 2 : 3 + cfg.max_clips;
+    const bool captions_enabled = cfg.detect != DetectMode::Heatmap;
+    const bool heatmap_wanted   = cfg.detect != DetectMode::Captions;
+    int total_steps = (cfg.dry_run ? 2 : 3 + cfg.max_clips) +
+                      (captions_enabled ? 1 : 0);
     int step = 0;
     auto say = [&](const char* fmt, auto... args) {
         ++step;
@@ -101,20 +161,82 @@ int run_pipeline(const Config& cfg_in) {
             "error: live/premiere/upcoming video — heatmap is not applicable.\n");
         return 3;
     }
-    if (!fr.heatmap) {
-        std::fprintf(stderr,
-            "error: no heatmap available for this video. "
-            "YouTube only exposes 'Most replayed' on eligible videos, and about "
-            "11%% of high-view videos lack it.\n");
-        return 2;
-    }
-
     if (cfg.out_dir.empty()) cfg.out_dir = default_out_dir(fr.video.id);
     fs::create_directories(cfg.out_dir);
 
-    // Dump-heatmap side output.
+    // Caption fetch + tier-1 crux scoring (docs/research/README.md).
+    CaptionDoc caption_doc;
+    CaptionScore caption_score;
+    std::string caption_lang, caption_mode = "off";
+    if (captions_enabled) {
+        say("Fetching captions (%s)", cfg.captions_langs.c_str());
+        std::string subs_dir = (fs::path(cfg.out_dir) / "work" / "subs").string();
+        try {
+            if (auto subs = fetch::fetch_subtitles(
+                    fr.video.url.empty() ? cfg.url_or_id : fr.video.url, cfg, subs_dir)) {
+                caption_doc = captions::parse_vtt(read_file(subs->vtt_path));
+                caption_doc.lang = subs->lang;
+                caption_lang = subs->lang;
+                caption_score = captions::score_captions(caption_doc,
+                                                         fr.video.duration_sec);
+            }
+        } catch (const std::exception& e) {
+            spdlog::debug("caption fetch/score failed: {}", e.what());
+        }
+        if (caption_score.usable) {
+            std::printf("    captions: %s, %zu cues, %zu crux candidate(s)\n",
+                        caption_lang.c_str(), caption_doc.cues.size(),
+                        caption_score.candidates.size());
+        } else {
+            std::printf("    captions: none usable — heatmap-only planning\n");
+        }
+    }
+
+    // Pick the profile detection runs on (--detect):
+    //   fused    — heatmap blended with caption score when both exist
+    //   heatmap  — replay heatmap only (pre-caption behavior)
+    //   captions — caption score only, even when a heatmap exists
+    // Captions alone also rescue no-heatmap videos in fused mode.
+    Heatmap detect_map;
+    if (!heatmap_wanted && !caption_score.usable) {
+        std::fprintf(stderr,
+            "error: --detect captions requested but no usable captions were "
+            "found for this video. Try --captions-langs or --detect fused.\n");
+        return 2;
+    }
+    if (heatmap_wanted && fr.heatmap && caption_score.usable && cfg.caption_weight > 0.0) {
+        detect_map = *fr.heatmap;
+        const double w = cfg.caption_weight;
+        for (std::size_t i = 0; i < kBinCount; ++i)
+            detect_map.bins[i].value =
+                (1.0 - w) * detect_map.bins[i].value + w * caption_score.bins[i];
+        caption_mode = "fused";
+    } else if (heatmap_wanted && fr.heatmap) {
+        detect_map = *fr.heatmap;
+        if (caption_score.usable) caption_mode = "fused";   // weight 0 → plain
+    } else if (caption_score.usable) {
+        // No heatmap: synthesize a 100-bin profile from the caption score.
+        const double bin_s = fr.video.duration_sec / static_cast<double>(kBinCount);
+        detect_map.bin_seconds = bin_s;
+        for (std::size_t i = 0; i < kBinCount; ++i) {
+            detect_map.bins[i].start_sec = static_cast<double>(i) * bin_s;
+            detect_map.bins[i].end_sec = static_cast<double>(i + 1) * bin_s;
+            detect_map.bins[i].value = caption_score.bins[i];
+        }
+        caption_mode = "caption-only";
+        std::printf("    %s — planning from captions alone\n",
+                    heatmap_wanted ? "no replay heatmap" : "--detect captions");
+    } else {
+        std::fprintf(stderr,
+            "error: no heatmap available for this video, and no usable "
+            "captions to plan from. YouTube only exposes 'Most replayed' on "
+            "eligible videos (about 11%% of high-view videos lack it).\n");
+        return 2;
+    }
+
+    // Dump-heatmap side output (the profile detection actually runs on).
     if (cfg.dump_heatmap) {
-        std::string spark = out::write_heatmap_json_and_sparkline(cfg.out_dir, *fr.heatmap);
+        std::string spark = out::write_heatmap_json_and_sparkline(cfg.out_dir, detect_map);
         std::printf("%s\n", spark.c_str());
     }
 
@@ -123,11 +245,36 @@ int run_pipeline(const Config& cfg_in) {
         fr.video.title.empty() ? fr.video.id.c_str() : fr.video.title.c_str(),
         fr.video.duration_sec);
 
-    // Detect + plan.
+    // Detect + plan on the (possibly fused / caption-synthesized) profile.
     detector::DetectResult det =
-        detector::detect(*fr.heatmap, fr.video.duration_sec, cfg);
+        detector::detect(detect_map, fr.video.duration_sec, cfg);
     Plan plan =
-        planner::plan(det, *fr.heatmap, fr.video.duration_sec, fr.chapters, cfg);
+        planner::plan(det, detect_map, fr.video.duration_sec, fr.chapters, cfg);
+
+    // Caption post-pass: when a planned clip overlaps a caption candidate,
+    // adopt the candidate's boundaries — the candidate starts on the hook
+    // line and ends after the payoff, which beats a centroid-centered window
+    // for reel material. Then snap everything to cue boundaries and label
+    // clips from the candidate's hook line.
+    if (caption_score.usable) {
+        for (auto& c : plan.clips) {
+            const CruxCandidate* best = nullptr;
+            for (const auto& cand : caption_score.candidates) {
+                if (cand.start_sec < c.end_sec && cand.end_sec > c.start_sec &&
+                    (!best || cand.score > best->score))
+                    best = &cand;
+            }
+            if (best && !cfg.clip_len) {   // an explicit -l overrides captions
+                c.start_sec = best->start_sec;
+                c.end_sec = std::max(best->end_sec, best->start_sec + 30.0);
+                c.centroid_sec = (c.start_sec + c.end_sec) / 2.0;
+            }
+            captions::snap_to_cues(caption_doc, 3.0, c.start_sec, c.end_sec);
+            if (c.label.empty() && best) c.label = best->hook_text.substr(0, 80);
+        }
+        write_captions_json(cfg.out_dir, caption_lang, caption_mode,
+                            cfg.caption_weight, caption_score);
+    }
 
     if (plan.quality.flat) {
         std::fprintf(stderr,
@@ -148,7 +295,8 @@ int run_pipeline(const Config& cfg_in) {
             // The manifest already has everything; echo the count.
             std::printf("{\"clips\":%zu,\"dryRun\":true}\n", plan.clips.size());
         } else {
-            print_dry_run_table(plan, fr.video, *fr.heatmap);
+            print_dry_run_table(plan, fr.video, detect_map);
+            if (caption_score.usable) print_caption_candidates(caption_score);
             std::printf("dry-run complete — manifest: %s/manifest.json\n", cfg.out_dir.c_str());
         }
         return 0;
