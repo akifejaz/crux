@@ -162,6 +162,8 @@ Selection
 Output
   -o, --out DIR                  default ./out/<id>
       --format MODE              916blur (default) | 916crop | orig
+      --no-intro-card            disable the source-thumbnail intro overlay
+      --intro-sec SEC            intro overlay duration, 0.5-5 (default 1.5)
       --dry-run                  plan only, no download
       --dump-heatmap             also write heatmap.json + ASCII sparkline
       --json                     machine-readable stdout

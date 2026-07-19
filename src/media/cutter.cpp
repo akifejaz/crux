@@ -1,6 +1,7 @@
 #include "media/cutter.h"
 
 #include "binres.h"
+#include "media/intro_assets.h"
 #include "media/proc.h"
 
 #include <spdlog/spdlog.h>
@@ -58,12 +59,188 @@ void preflight_input(const std::string& path) {
 
 } // namespace
 
+namespace {
+
+// Builds the ffmpeg args for one cut. Optional pre-roll (thumbnail +
+// play-button + cursor + whoosh) and outro card ("Watch full video here"
+// with channel branding) are appended as xfades on the main clip. Inputs
+// (variable): source, [thumb, whoosh, tick, play, cursor] if with_intro,
+// [outro] if with_outro. 916blur/916crop only — orig skips both.
+std::vector<std::string> build_cut_args(const std::string& input,
+                                        double s, double e,
+                                        Format fmt,
+                                        const Config& cfg,
+                                        const std::string& out_file,
+                                        const std::string& thumb_path,
+                                        const std::string& play_png,
+                                        const std::string& cursor_png,
+                                        const std::string& outro_path,
+                                        bool with_intro,
+                                        bool with_outro) {
+    std::vector<std::string> args = {
+        "-y",
+        "-loglevel", "warning",
+        "-stats",
+        "-ss", ftos(s),
+        "-to", ftos(e),
+        "-i", input,
+    };
+
+    const char* filt = filter_for(fmt);
+    if ((with_intro || with_outro) && filt) {
+        // Layout: [intro?] → clip → [outro?]. Each transition is a 0.4s xfade
+        // so nothing hard-cuts.
+        const double clip_dur = e - s;
+        const double xfade = 0.4;
+
+        // Intro storyboard, proportional to intro_sec T (defaults for T=1.5):
+        //   cursor flight 0 → 0.47T (0.7s, ease-out cubic)
+        //   click at 0.60T (0.9s): press nudge + tick, play button vanishes
+        //   crossfade 0.73T → T (1.1s → 1.5s)
+        const double T = cfg.intro_sec;
+        const double arrive = 0.47 * T;
+        const double press = 0.60 * T;
+        const double intro_fade_off = with_intro ? T - xfade : 0.0;
+
+        // Assemble input args in a fixed order so the [N:v] indices line up.
+        int input_i = 1;
+        int thumb_i = -1, whoosh_i = -1, tick_i = -1, play_i = -1, cursor_i = -1;
+        if (with_intro) {
+            args.insert(args.end(), {
+                "-loop", "1", "-framerate", "30", "-t", ftos(T), "-i", thumb_path,
+                "-f", "lavfi", "-t", ftos(T),
+                "-i", "anoisesrc=color=pink:r=44100:a=0.6:d=" + ftos(T),
+                "-f", "lavfi", "-t", "0.05",
+                "-i", "sine=frequency=1500:sample_rate=44100:duration=0.05",
+                "-i", play_png,
+                "-i", cursor_png,
+            });
+            thumb_i = input_i++;
+            whoosh_i = input_i++;
+            tick_i = input_i++;
+            play_i = input_i++;
+            cursor_i = input_i++;
+        }
+        int outro_i = -1;
+        if (with_outro) {
+            args.insert(args.end(), {
+                "-loop", "1", "-framerate", "30",
+                "-t", ftos(cfg.outro_sec),
+                "-i", outro_path,
+            });
+            outro_i = input_i++;
+        }
+
+        std::ostringstream g;
+        // Main video branch always runs through the reframe filter.
+        g << filt << ";";
+        g << "[v]fps=30,setsar=1,format=yuv420p,settb=AVTB[main_v];";
+
+        // The "current" merged video/audio labels — we chain xfades onto them.
+        std::string cur_v = "[main_v]";
+        std::string cur_a = "[0:a]";
+
+        if (with_intro) {
+            const std::string ease =
+                "(1-pow(1-min(t/" + ftos(arrive) + ",1),3))";
+            const std::string nudge =
+                "if(between(t," + ftos(press - 0.03) + "," + ftos(press + 0.06) + "),7,0)";
+
+            // Intro backdrop + play button + cursor overlay.
+            g << "[" << thumb_i << ":v]split=2[t1][t2];"
+              << "[t1]scale=1080:1920:force_original_aspect_ratio=increase,"
+              << "crop=1080:1920,gblur=sigma=24[ibg];"
+              << "[t2]scale=1080:-2[ifg];"
+              << "[ibg][ifg]overlay=(W-w)/2:(H-h)/2[ib];"
+              << "[ib][" << play_i << ":v]overlay=(W-w)/2:(H-h)/2:enable='lte(t," << ftos(press) << ")'[ipb];"
+              << "[ipb][" << cursor_i << ":v]overlay="
+              << "x='(W+20)+((W/2-6)-(W+20))*" << ease << "':"
+              << "y='(H+20)+((H/2-6)-(H+20))*" << ease << "+" << nudge << "'[iov];"
+              << "[iov]fps=30,setsar=1,format=yuv420p,settb=AVTB[intro_v];"
+              << "[intro_v]" << cur_v << "xfade=transition=fade:duration=" << ftos(xfade)
+              << ":offset=" << ftos(intro_fade_off) << "[after_intro_v];";
+            cur_v = "[after_intro_v]";
+
+            // Audio: whoosh + click tick + clip audio delayed until the crossfade.
+            g << "[" << whoosh_i << ":a]lowpass=f=2600,"
+              << "afade=t=in:st=0:d=" << ftos(0.2 * T)
+              << ",afade=t=out:st=" << ftos(0.45 * T) << ":d=" << ftos(0.55 * T)
+              << ",volume=0.55[wh];"
+              << "[" << tick_i << ":a]adelay=" << static_cast<int>((press - 0.05) * 1000.0)
+              << "|" << static_cast<int>((press - 0.05) * 1000.0) << ",volume=0.45[tk];"
+              << "[0:a]adelay=" << static_cast<int>(intro_fade_off * 1000.0)
+              << "|" << static_cast<int>(intro_fade_off * 1000.0)
+              << ",afade=t=in:st=" << ftos(intro_fade_off) << ":d=" << ftos(xfade) << "[ca];"
+              << "[wh][tk][ca]amix=inputs=3:duration=longest:normalize=0[after_intro_a];";
+            cur_a = "[after_intro_a]";
+        }
+
+        if (with_outro) {
+            // Video merged so far spans [0 … intro_len + clip_dur - xfade].
+            const double pre_outro_len = with_intro
+                ? (T + clip_dur - xfade)
+                : clip_dur;
+            const double outro_xfade_off = pre_outro_len - xfade;
+            const double total = pre_outro_len + cfg.outro_sec - xfade;
+
+            g << "[" << outro_i << ":v]scale=1080:1920,fps=30,setsar=1,"
+              << "format=yuv420p,settb=AVTB[outro_v];"
+              << cur_v << "[outro_v]xfade=transition=fade:duration=" << ftos(xfade)
+              << ":offset=" << ftos(outro_xfade_off) << "[vo];";
+            cur_v = "[vo]";
+
+            // Audio: pad the running audio to the new total length and fade
+            // out into silence over the outro xfade window.
+            g << cur_a << "apad=whole_dur=" << ftos(total)
+              << ",afade=t=out:st=" << ftos(outro_xfade_off)
+              << ":d=" << ftos(xfade) << "[ao];";
+            cur_a = "[ao]";
+        }
+
+        // Emit final labels [vo]/[ao] if intro-only path didn't already.
+        if (cur_v != "[vo]") g << cur_v << "null[vo];";
+        if (cur_a != "[ao]") g << cur_a << "anull[ao]";
+        else {
+            // Trim trailing ';' from the last statement so filter_complex parses.
+            std::string s = g.str();
+            if (!s.empty() && s.back() == ';') s.pop_back();
+            g.str(s);
+            g.seekp(0, std::ios::end);
+        }
+
+        args.insert(args.end(), {
+            "-filter_complex", g.str(),
+            "-map", "[vo]",
+            "-map", "[ao]",
+        });
+    } else if (filt) {
+        args.insert(args.end(), {
+            "-filter_complex", filt,
+            // Explicit stream mapping: filtered video + optional audio track.
+            "-map", "[v]",
+            "-map", "0:a?",
+        });
+    }
+    args.insert(args.end(), {
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "160k",
+        "-movflags", "+faststart",
+        out_file,
+    });
+    return args;
+}
+
+} // namespace
+
 void cut_clip(const std::string& source_file,
               const Clip& clip,
               const DownloadResult& dl,
               Format fmt,
               const Config& cfg,
-              const std::string& out_file) {
+              const std::string& out_file,
+              const std::string& thumb_path,
+              const std::string& outro_path) {
     const std::string ffmpeg = binres::resolve_ffmpeg(cfg.ffmpeg_path);
 
     // Pick the actual input file. Three cases:
@@ -99,31 +276,22 @@ void cut_clip(const std::string& source_file,
 
     preflight_input(input);
 
-    std::vector<std::string> args = {
-        "-y",
-        "-loglevel", "warning",
-        "-stats",
-        "-ss", ftos(s),
-        "-to", ftos(e),
-        "-i", input,
-    };
-
-    const char* filt = filter_for(fmt);
-    if (filt) {
-        args.insert(args.end(), {
-            "-filter_complex", filt,
-            // Explicit stream mapping: filtered video + optional audio track.
-            "-map", "[v]",
-            "-map", "0:a?",
-        });
+    bool with_intro = cfg.intro_card && !thumb_path.empty() &&
+                      fmt != Format::Orig;
+    bool with_outro = cfg.outro_card && !outro_path.empty() &&
+                      fmt != Format::Orig;
+    {
+        std::error_code tec;
+        if (with_intro && !fs::exists(thumb_path, tec)) with_intro = false;
+        if (with_outro && !fs::exists(outro_path, tec)) with_outro = false;
     }
-    args.insert(args.end(), {
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "160k",
-        "-movflags", "+faststart",
-        out_file,
-    });
+    std::string play_png, cursor_png;
+    if (with_intro) {
+        IntroAssets assets = write_intro_assets(
+            fs::path(thumb_path).parent_path().string());
+        play_png = assets.play_png;
+        cursor_png = assets.cursor_png;
+    }
 
     proc::RunOptions opts;
     opts.timeout_ms = 15 * 60 * 1000;
@@ -131,7 +299,21 @@ void cut_clip(const std::string& source_file,
     opts.inherit_stderr = true;
     opts.capture_stdout = false;
     opts.capture_stderr = false;
+
+    std::vector<std::string> args =
+        build_cut_args(input, s, e, fmt, cfg, out_file, thumb_path,
+                       play_png, cursor_png, outro_path, with_intro, with_outro);
     proc::RunResult r = proc::run(ffmpeg, args, opts);
+    if (r.exit_code != 0 && (with_intro || with_outro)) {
+        // The intro/outro graph assumes an audio track, decodable thumbnail,
+        // and a valid outro image; degrade to a plain cut rather than failing
+        // the clip.
+        spdlog::warn("intro/outro graph failed (exit {}) — retrying without them",
+                     r.exit_code);
+        args = build_cut_args(input, s, e, fmt, cfg, out_file, thumb_path,
+                              play_png, cursor_png, outro_path, false, false);
+        r = proc::run(ffmpeg, args, opts);
+    }
     if (r.exit_code != 0) {
         throw std::runtime_error("ffmpeg cut failed (exit " +
                                  std::to_string(r.exit_code) +

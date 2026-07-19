@@ -21,4 +21,25 @@ std::optional<SubsResult> fetch_subtitles(const std::string& url_or_id,
                                           const Config& cfg,
                                           const std::string& dir);
 
+// Downloads the video's thumbnail as JPEG into `dir` via yt-dlp (for the
+// clip intro card). Returns the image path, or std::nullopt on failure —
+// callers cut without the intro card.
+std::optional<std::string> fetch_thumbnail(const std::string& url_or_id,
+                                           const Config& cfg,
+                                           const std::string& dir);
+
+// Channel branding assets used by the outro card. Any field may be empty on
+// partial success (e.g. a channel with no banner uploaded).
+struct ChannelAssets {
+    std::string banner_path;   // widescreen banner JPG
+    std::string avatar_path;   // square avatar JPG
+};
+
+// Downloads the channel's banner + avatar as JPEG via yt-dlp using the
+// channel URL (from parse.cpp). Best-effort; returns std::nullopt if nothing
+// usable arrived.
+std::optional<ChannelAssets> fetch_channel_assets(const std::string& channel_url,
+                                                  const Config& cfg,
+                                                  const std::string& dir);
+
 } // namespace crux::fetch

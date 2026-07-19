@@ -20,6 +20,7 @@
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <ctime>
@@ -53,6 +54,7 @@ struct Job {
     std::atomic<bool> done{false};
     std::atomic<int> exit_code{-1};
     std::chrono::system_clock::time_point created;
+    std::chrono::system_clock::time_point finished;
     std::thread runner;
 
     ~Job() { if (runner.joinable()) runner.join(); }
@@ -245,6 +247,7 @@ void run_job(std::shared_ptr<Job> job, std::string exe) {
         std::ofstream ofs(job->log_file, std::ios::app);
         ofs << "\n[server] exit_code=" << job->exit_code.load() << "\n";
     }
+    job->finished = std::chrono::system_clock::now();
     job->done = true;
 }
 
@@ -290,12 +293,100 @@ fs::path resolve_dashboard_dir() {
 fs::path find_manifest(const fs::path& out_dir) {
     fs::path cand = out_dir / "manifest.json";
     if (fs::exists(cand)) return cand;
-    for (auto& e : fs::directory_iterator(out_dir)) {
+    std::error_code ec;
+    for (auto& e : fs::directory_iterator(out_dir, ec)) {
         if (!e.is_directory()) continue;
         auto p = e.path() / "manifest.json";
         if (fs::exists(p)) return p;
     }
     return {};
+}
+
+// ---------- Disk runs (out/ directories from past sessions / the CLI) ----
+
+bool safe_job_id(const std::string& id) {
+    return !id.empty() && id.find("..") == std::string::npos &&
+           id.find('/') == std::string::npos &&
+           id.find('\\') == std::string::npos;
+}
+
+// Metadata pulled from a run's manifest for the sidebar. Empty on failure.
+struct RunMeta {
+    std::string url;
+    std::string title;
+    int clip_count = 0;
+};
+RunMeta read_run_meta(const fs::path& out_dir) {
+    RunMeta m;
+    auto man = find_manifest(out_dir);
+    if (man.empty()) return m;
+    try {
+        json j = json::parse(read_all(man));
+        const auto& v = j.value("video", json::object());
+        m.url = v.value("url", std::string{});
+        m.title = v.value("title", std::string{});
+        if (j.contains("clips") && j["clips"].is_array())
+            m.clip_count = static_cast<int>(j["clips"].size());
+    } catch (...) {}
+    return m;
+}
+
+// Epoch millis for a file's last write time.
+std::int64_t file_epoch_ms(const fs::path& p) {
+    std::error_code ec;
+    auto ft = fs::last_write_time(p, ec);
+    if (ec) return 0;
+    auto sys = std::chrono::clock_cast<std::chrono::system_clock>(ft);
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        sys.time_since_epoch()).count();
+}
+
+// Best-effort start time for a disk run: parse "web-YYYYMMDD-HHMMSS-mmm" ids,
+// otherwise fall back to the earliest interesting file's mtime.
+std::int64_t infer_disk_start_ms(const std::string& id, const fs::path& dir) {
+    if (id.rfind("web-", 0) == 0 && id.size() >= 21) {
+        std::tm tm{};
+        int ms = 0;
+        if (std::sscanf(id.c_str() + 4, "%4d%2d%2d-%2d%2d%2d-%3d",
+                        &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+                        &tm.tm_hour, &tm.tm_min, &tm.tm_sec, &ms) == 7) {
+            tm.tm_year -= 1900;
+            tm.tm_mon  -= 1;
+            std::time_t t = std::mktime(&tm);
+            if (t != -1)
+                return static_cast<std::int64_t>(t) * 1000 + ms;
+        }
+    }
+    // Fallback: the run.log (if present) is written first; otherwise pick
+    // the oldest file we can find in the dir.
+    std::int64_t best = 0;
+    for (const char* n : {"run.log", "heatmap.json", "captions.json"}) {
+        fs::path p = dir / n;
+        if (fs::exists(p)) {
+            auto v = file_epoch_ms(p);
+            if (v && (!best || v < best)) best = v;
+        }
+    }
+    return best;
+}
+
+// Resolves an id to an in-memory job, or synthesizes a read-only "disk job"
+// for any out/<id> directory that holds a manifest — so every past run stays
+// browsable in the dashboard across server restarts.
+std::shared_ptr<Job> find_or_disk_job(const std::string& id) {
+    if (auto j = find_job(id)) return j;
+    if (!safe_job_id(id)) return nullptr;
+    fs::path dir = fs::path("out") / id;
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec) || find_manifest(dir).empty()) return nullptr;
+    auto job = std::make_shared<Job>();
+    job->id = id;
+    job->out_dir = dir;
+    job->log_file = dir / "run.log";
+    job->url = read_run_meta(dir).url;
+    job->done = true;
+    job->exit_code = 0;   // a manifest only exists once planning succeeded
+    return job;
 }
 
 } // namespace
@@ -374,18 +465,63 @@ int main(int argc, char** argv) {
         }
     });
 
-    // GET /api/jobs  → list recent jobs
+    // GET /api/jobs  → in-memory jobs first (newest first), then every other
+    // run directory found under out/ (from earlier sessions or the CLI),
+    // sorted by modification time.
     svr.Get("/api/jobs", [](const httplib::Request&, httplib::Response& res) {
+        auto to_ms = [](const std::chrono::system_clock::time_point& tp) {
+            return std::chrono::duration_cast<std::chrono::milliseconds>(
+                tp.time_since_epoch()).count();
+        };
+
         json arr = json::array();
-        std::lock_guard<std::mutex> lk(g_jobs_mu);
-        for (auto it = g_job_order.rbegin(); it != g_job_order.rend(); ++it) {
-            auto j = g_jobs[*it];
+        std::vector<std::string> seen;
+        {
+            std::lock_guard<std::mutex> lk(g_jobs_mu);
+            for (auto it = g_job_order.rbegin(); it != g_job_order.rend(); ++it) {
+                auto j = g_jobs[*it];
+                seen.push_back(j->id);
+                RunMeta meta = read_run_meta(j->out_dir);
+                arr.push_back({
+                    {"id", j->id},
+                    {"url", j->url},
+                    {"title", meta.title},
+                    {"clip_count", meta.clip_count},
+                    {"done", j->done.load()},
+                    {"exit_code", j->exit_code.load()},
+                    {"out_dir", j->out_dir.string()},
+                    {"started_ms", to_ms(j->created)},
+                    {"finished_ms", j->done.load() ? to_ms(j->finished) : 0},
+                });
+            }
+        }
+        struct DiskRun { fs::path dir; std::int64_t mtime_ms; };
+        std::vector<DiskRun> disk;
+        std::error_code ec;
+        for (const auto& e : fs::directory_iterator("out", ec)) {
+            if (!e.is_directory()) continue;
+            const std::string name = e.path().filename().string();
+            if (std::find(seen.begin(), seen.end(), name) != seen.end()) continue;
+            if (find_manifest(e.path()).empty()) continue;
+            disk.push_back({e.path(), file_epoch_ms(find_manifest(e.path()))});
+        }
+        std::sort(disk.begin(), disk.end(),
+                  [](const DiskRun& a, const DiskRun& b) { return a.mtime_ms > b.mtime_ms; });
+        for (const auto& d : disk) {
+            const std::string id = d.dir.filename().string();
+            RunMeta meta = read_run_meta(d.dir);
+            std::int64_t start = infer_disk_start_ms(id, d.dir);
             arr.push_back({
-                {"id", j->id},
-                {"url", j->url},
-                {"done", j->done.load()},
-                {"exit_code", j->exit_code.load()},
-                {"out_dir", j->out_dir.string()},
+                {"id", id},
+                {"url", meta.url},
+                {"title", meta.title},
+                {"clip_count", meta.clip_count},
+                {"done", true},
+                {"exit_code", 0},
+                {"disk", true},
+                {"out_dir", d.dir.string()},
+                {"started_ms", start},
+                {"finished_ms", d.mtime_ms},
             });
         }
         json r = {{"jobs", arr}};
@@ -395,7 +531,7 @@ int main(int argc, char** argv) {
     // GET /api/jobs/:id
     svr.Get(R"(/api/jobs/([^/]+))", [](const httplib::Request& req, httplib::Response& res) {
         auto id = req.matches[1].str();
-        auto job = find_job(id);
+        auto job = find_or_disk_job(id);
         if (!job) { res.status = 404; return; }
         json r = {
             {"id", job->id},
@@ -411,7 +547,7 @@ int main(int argc, char** argv) {
     // GET /api/jobs/:id/log?from=N
     svr.Get(R"(/api/jobs/([^/]+)/log)", [](const httplib::Request& req, httplib::Response& res) {
         auto id = req.matches[1].str();
-        auto job = find_job(id);
+        auto job = find_or_disk_job(id);
         if (!job) { res.status = 404; return; }
         std::uint64_t from = 0;
         if (req.has_param("from")) {
@@ -447,7 +583,7 @@ int main(int argc, char** argv) {
     svr.Get(R"(/api/jobs/([^/]+)/manifest)",
             [](const httplib::Request& req, httplib::Response& res) {
         auto id = req.matches[1].str();
-        auto job = find_job(id);
+        auto job = find_or_disk_job(id);
         if (!job) { res.status = 404; return; }
         auto p = find_manifest(job->out_dir);
         if (p.empty()) { res.status = 404; return; }
@@ -458,7 +594,7 @@ int main(int argc, char** argv) {
     svr.Get(R"(/api/jobs/([^/]+)/heatmap)",
             [](const httplib::Request& req, httplib::Response& res) {
         auto id = req.matches[1].str();
-        auto job = find_job(id);
+        auto job = find_or_disk_job(id);
         if (!job) { res.status = 404; return; }
         // heatmap.json sits next to manifest.json.
         auto man = find_manifest(job->out_dir);
@@ -474,7 +610,7 @@ int main(int argc, char** argv) {
         auto id  = req.matches[1].str();
         auto rel = req.matches[2].str();
         if (rel.find("..") != std::string::npos) { res.status = 400; return; }
-        auto job = find_job(id);
+        auto job = find_or_disk_job(id);
         if (!job) { res.status = 404; return; }
         // Look in out_dir/<video-id>/<rel> first (usual layout).
         fs::path p;

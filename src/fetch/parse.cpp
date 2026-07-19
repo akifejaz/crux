@@ -37,6 +37,18 @@ FetchResult parse_ytdlp_json(const std::string& text) {
     r.video.id = as_string(j["id"]);
     r.video.title   = j.contains("title")       ? as_string(j["title"])       : "";
     r.video.channel = j.contains("channel")     ? as_string(j["channel"])     : "";
+    // Channel handle URL — the outro card fetches banner + avatar from here.
+    // yt-dlp exposes "uploader_url" (the @handle page) and "channel_url" (the
+    // /channel/UC… id page); the @handle URL is more human-readable and both
+    // resolve to the same profile.
+    r.video.channel_url = j.contains("uploader_url") ? as_string(j["uploader_url"])
+                       : j.contains("channel_url")   ? as_string(j["channel_url"])
+                       : "";
+    if (j.contains("uploader_id") && j["uploader_id"].is_string())
+        r.video.channel_handle = j["uploader_id"].get<std::string>();
+    if (j.contains("channel_follower_count") && j["channel_follower_count"].is_number())
+        r.video.channel_follower_count =
+            j["channel_follower_count"].get<long long>();
     r.video.url     = j.contains("webpage_url") ? as_string(j["webpage_url"]) : "";
     r.video.duration_sec = j.contains("duration") ? as_number(j["duration"]) : 0.0;
 

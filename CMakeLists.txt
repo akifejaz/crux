@@ -99,6 +99,8 @@ add_library(crux_core STATIC
     src/media/proc.cpp
     src/media/downloader.cpp
     src/media/cutter.cpp
+    src/media/intro_assets.cpp
+    src/media/outro_card.cpp
     src/media/silence.cpp
     src/out/manifest.cpp
     src/pipeline.cpp

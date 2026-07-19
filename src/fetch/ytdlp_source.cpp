@@ -38,14 +38,32 @@ public:
         spdlog::debug("running yt-dlp fetch: {}", exe);
         proc::RunResult r = proc::run(exe, args, opts);
         if (r.exit_code != 0) {
-            // Surface actionable hints (bot check, geo-lock, private).
+            // Surface actionable hints (DPAPI, bot check, geo-lock, private).
             std::string hint;
             const auto& err = r.stderr_text;
-            if (err.find("confirm you're not a bot") != std::string::npos) {
-                hint = " Hint: pass --cookies-from-browser chrome (or firefox).";
+            if (err.find("Failed to decrypt with DPAPI") != std::string::npos ||
+                err.find("app-bound") != std::string::npos) {
+                // Chrome 127+ on Windows moved cookies to app-bound encryption
+                // and yt-dlp can't decrypt them from another process
+                // (yt-dlp/yt-dlp#10927). Try a different browser or none.
+                hint = " Hint: Chrome cookies can't be read on recent Chrome for Windows "
+                       "(yt-dlp #10927). Switch the cookie source to Edge, Firefox, or "
+                       "Brave, or set it to None if this video is public.";
+            } else if (err.find("could not find") != std::string::npos &&
+                       err.find("cookies database") != std::string::npos) {
+                // yt-dlp couldn't find that browser's profile — it isn't
+                // installed, or the profile lives in a non-default path.
+                hint = " Hint: that browser isn't installed. Try a different one "
+                       "(Edge, Firefox, Brave), or set the cookie source to None — "
+                       "public videos don't need cookies.";
+            } else if (err.find("confirm you're not a bot") != std::string::npos) {
+                hint = " Hint: YouTube's bot check triggered. Try --cookies-from-browser edge "
+                       "(or firefox/brave — whichever you're signed into YouTube with). "
+                       "Chrome on Windows may fail with DPAPI errors.";
             } else if (err.find("age") != std::string::npos ||
                        err.find("Sign in to confirm") != std::string::npos) {
-                hint = " Hint: this video may require sign-in; try --cookies-from-browser.";
+                hint = " Hint: this video may require sign-in. Try --cookies-from-browser edge "
+                       "(or firefox/brave).";
             }
             throw std::runtime_error("yt-dlp failed (" + std::to_string(r.exit_code) +
                                      "): " + err + hint);

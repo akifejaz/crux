@@ -142,6 +142,17 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 }
 .url-chip.hidden { display: none; }
 
+/* Validation states on the URL field. Red border + off-red chip appear once
+ * the user has typed something invalid; empty stays neutral. */
+input[type=text].invalid { border-color: var(--err); }
+input[type=text].invalid:focus { border-color: var(--err); }
+.url-chip.err {
+  color: var(--err); border-color: var(--err); background: transparent;
+}
+.url-error {
+  color: var(--err); font-size: 11.5px; margin-top: 4px; min-height: 14px;
+}
+
 /* ========================================================================
  * Presets
  * ==================================================================== */
@@ -227,20 +238,47 @@ details.adv .adv-body { padding: 6px 12px 12px; }
   text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
   margin: 20px 0 6px;
 }
+.jobs { display: flex; flex-direction: column; gap: 6px; }
 .jobs .item {
-  padding: 7px 10px; border-radius: 5px; cursor: pointer;
+  padding: 8px 10px; border-radius: 6px; cursor: pointer;
   color: var(--text-2); font-size: 12.5px;
-  border: 1px solid transparent;
-  transition: background 100ms;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  transition: background 100ms, border-color 100ms;
 }
-.jobs .item:hover { background: var(--panel-2); }
-.jobs .item.active { background: var(--panel-2); border-color: var(--border-2); color: var(--text); }
-.jobs .item .id {
-  font-family: var(--mono); font-size: 10.5px;
-  color: var(--muted-2); margin-top: 2px;
+.jobs .item:hover { background: var(--panel-3); border-color: var(--border-2); }
+.jobs .item.active {
+  background: var(--panel-3); border-color: var(--accent);
+  color: var(--text);
 }
-.jobs .item .state.ok  { color: var(--ok); }
-.jobs .item .state.err { color: var(--err); }
+.jobs .item .head {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+.jobs .item .title {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--text); font-weight: 500;
+}
+.jobs .item .dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--muted);
+}
+.jobs .item .dot.ok  { background: var(--ok); }
+.jobs .item .dot.err { background: var(--err); }
+.jobs .item .dot.running {
+  background: var(--accent); animation: pulse 1.1s infinite;
+}
+.jobs .item .tags {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.jobs .item .tag {
+  padding: 2px 6px; border-radius: 3px; font-size: 10.5px;
+  background: var(--panel);
+  color: var(--muted); border: 1px solid var(--border);
+  font-family: var(--mono);
+}
+.jobs .item .tag.clips { color: var(--accent); border-color: var(--border-2); }
+.jobs .item .tag.err   { color: var(--err); border-color: var(--err); }
 .jobs .empty { color: var(--muted-2); font-size: 12px; padding: 6px 0; }
 
 /* ========================================================================
@@ -374,7 +412,6 @@ details.adv .adv-body { padding: 6px 12px 12px; }
   <div class="sub">most-replayed → short clips</div>
   <div class="spacer"></div>
   <a class="link" href="https://github.com" target="_blank">docs</a>
-  <span id="status-pill" class="status-pill"><span class="dot"></span><span id="status-text">idle</span></span>
 </header>
 
 <main>
@@ -389,6 +426,7 @@ details.adv .adv-body { padding: 6px 12px 12px; }
           <input id="url" type="text" placeholder="https://www.youtube.com/watch?v=…">
           <span id="url-chip" class="url-chip hidden"></span>
         </div>
+        <div id="urlError" class="url-error"></div>
       </div>
 
       <div class="field">
@@ -447,11 +485,16 @@ details.adv .adv-body { padding: 6px 12px 12px; }
               <label class="k">Cookies from</label>
               <select id="cookies">
                 <option value="none">None</option>
-                <option value="chrome">Chrome</option>
+                <option value="firefox">Firefox (recommended)</option>
                 <option value="edge">Edge</option>
-                <option value="firefox">Firefox</option>
                 <option value="brave">Brave</option>
+                <option value="chrome">Chrome (may fail on Windows)</option>
               </select>
+              <div class="hint" style="margin-top:4px; font-size:11px; color: var(--muted-2);">
+                Chrome 127+ on Windows uses DPAPI-bound cookies yt-dlp can't
+                read (<a href="https://github.com/yt-dlp/yt-dlp/issues/10927"
+                target="_blank" rel="noopener">#10927</a>) — use Firefox/Edge.
+              </div>
             </div>
             <div class="field">
               <label class="k">Heatmap source</label>
@@ -494,7 +537,7 @@ details.adv .adv-body { padding: 6px 12px 12px; }
         <span id="cliText">run.bat</span>
       </div>
 
-      <button id="runBtn" class="btn-run" type="submit">▶  Run</button>
+      <button id="runBtn" class="btn-run" type="submit" disabled>▶  Run</button>
     </form>
 
     <div class="section-title">Recent runs</div>
@@ -670,11 +713,34 @@ $("maxClips").addEventListener("input", () => { onSliderChange(); updateCliPrevi
 $("clipLen").addEventListener("input",   () => { onSliderChange(); updateCliPreview(); });
 $("minGap").addEventListener("input",    () => { onSliderChange(); updateCliPreview(); });
 
-$("url").addEventListener("input", () => {
-  const id = extractVideoId($("url").value);
+function updateUrlValidity() {
+  const raw = $("url").value.trim();
+  const id = extractVideoId(raw);
+  const box = $("url");
   const chip = $("url-chip");
-  if (id) { chip.textContent = id; chip.classList.remove("hidden"); }
-  else    { chip.classList.add("hidden"); }
+  const err = $("urlError");
+  if (raw === "") {
+    box.classList.remove("invalid");
+    chip.classList.add("hidden");
+    chip.classList.remove("err");
+    err.textContent = "";
+  } else if (id) {
+    box.classList.remove("invalid");
+    chip.textContent = id;
+    chip.classList.remove("hidden", "err");
+    err.textContent = "";
+  } else {
+    box.classList.add("invalid");
+    chip.textContent = "invalid";
+    chip.classList.remove("hidden");
+    chip.classList.add("err");
+    err.textContent = "Enter a YouTube URL (youtube.com/watch?v=… or youtu.be/…) or 11-char video id";
+  }
+  $("runBtn").disabled = !id;
+}
+
+$("url").addEventListener("input", () => {
+  updateUrlValidity();
   updateCliPreview();
 });
 
@@ -690,8 +756,20 @@ $("url").addEventListener("input", () => {
 // ==========================================================================
 // CLI preview
 // ==========================================================================
+// Extracts a clean YouTube URL from whatever the user pasted — a bare id, a
+// watch URL, or a full `run.bat "..." --flags` copy-paste. If we find a video
+// id anywhere in the string, always canonicalize to https://youtu.be/<id> so
+// stray text before/after doesn't get shipped to the CLI as an argument.
+function cleanUrl(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  const id = extractVideoId(s);
+  if (id) return "https://www.youtube.com/watch?v=" + id;
+  return s;   // let the CLI validate anything we couldn't parse
+}
+
 function currentParams() {
-  const url = $("url").value.trim();
+  const url = cleanUrl($("url").value);
   const p = {
     url,
     max_clips: +$("maxClips").value,
@@ -770,11 +848,10 @@ document.querySelectorAll(".tab").forEach(tab => {
 // ==========================================================================
 // Status pill
 // ==========================================================================
-function setStatus(kind, text) {
-  const p = $("status-pill");
-  p.className = "status-pill" + (kind ? " " + kind : "");
-  $("status-text").textContent = text || "idle";
-}
+// The header status pill was removed — the Recent Runs card carries the same
+// signal. Keep the shim so unchanged callers stay valid, but let them decide
+// what to expose (e.g. the current job's item is already highlighted).
+function setStatus(_kind, _text) {}
 
 // ==========================================================================
 // Run
@@ -1075,12 +1152,19 @@ async function refreshJobList() {
       return;
     }
     $("jobList").innerHTML = j.jobs.map(job => {
-      const stateCls = job.done ? (job.exit_code === 0 ? "ok" : "err") : "";
-      const stateLbl = job.done ? (job.exit_code === 0 ? "ok" : "exit " + job.exit_code) : "running";
+      const running = !job.done;
+      const failed  = job.done && job.exit_code !== 0;
+      const dotCls  = running ? "running" : (failed ? "err" : "ok");
+      const label   = job.title || shortLabel(job.url || "") || job.id;
       return `
         <div class="item ${job.id === state.currentJob ? 'active' : ''}" data-id="${esc(job.id)}">
-          <div>${esc(shortLabel(job.url))}</div>
-          <div class="id">${esc(job.id)} · <span class="state ${stateCls}">${stateLbl}</span></div>
+          <div class="head">
+            <span class="dot ${dotCls}"></span>
+            <span class="title" title="${esc(label)}">${esc(label)}</span>
+          </div>
+          <div class="tags">
+            ${renderRunTags(job)}
+          </div>
         </div>`;
     }).join("");
     $("jobList").querySelectorAll(".item").forEach(el => {
@@ -1092,6 +1176,47 @@ function shortLabel(u) {
   const id = extractVideoId(u);
   if (id) return "yt: " + id;
   return u.length > 40 ? u.slice(0, 38) + "…" : u;
+}
+function fmtDate(ms) {
+  if (!ms) return "";
+  const d = new Date(ms), now = new Date();
+  const same = d.toDateString() === now.toDateString();
+  if (same) return d.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+  const days = Math.floor((now - d) / 86400000);
+  if (days < 7) return d.toLocaleDateString([], {weekday: "short"});
+  return d.toLocaleDateString([], {month: "short", day: "numeric"});
+}
+function fmtDuration(ms) {
+  if (!ms || ms < 0) return "";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return s + "s";
+  const m = Math.floor(s / 60), rs = s % 60;
+  if (m < 60) return rs ? `${m}m ${rs}s` : `${m}m`;
+  const h = Math.floor(m / 60), rm = m % 60;
+  return rm ? `${h}h ${rm}m` : `${h}h`;
+}
+function renderRunTags(job) {
+  const tags = [];
+  const date = fmtDate(job.finished_ms || job.started_ms);
+  if (date) tags.push(`<span class="tag" title="Run date">${esc(date)}</span>`);
+  if (job.done && job.exit_code === 0 &&
+      job.finished_ms && job.started_ms) {
+    const ms = job.finished_ms - job.started_ms;
+    // Under a second means we couldn't infer the real start time (disk runs
+    // without a run.log) — skip rather than mislead with "0s".
+    if (ms >= 1000) {
+      const d = fmtDuration(ms);
+      if (d) tags.push(`<span class="tag" title="Run duration">${esc(d)}</span>`);
+    }
+  }
+  if (typeof job.clip_count === "number" && job.clip_count > 0) {
+    const label = job.clip_count === 1 ? "1 clip" : job.clip_count + " clips";
+    tags.push(`<span class="tag clips" title="Clips produced">${esc(label)}</span>`);
+  }
+  if (job.done && job.exit_code !== 0) {
+    tags.push(`<span class="tag err" title="Exit code">exit ${esc(String(job.exit_code))}</span>`);
+  }
+  return tags.join("");
 }
 setInterval(refreshJobList, 3500);
 

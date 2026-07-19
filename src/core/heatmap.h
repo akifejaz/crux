@@ -21,6 +21,9 @@ struct VideoMeta {
     std::string id;
     std::string title;
     std::string channel;
+    std::string channel_url;           // @handle URL, for the outro card
+    std::string channel_handle;        // "@Wajeehkazmiii" or ""
+    long long channel_follower_count = 0;
     std::string url;
     double duration_sec = 0.0;
     bool is_live = false;

@@ -8,6 +8,7 @@
 #include "fetch/subs.h"
 #include "media/cutter.h"
 #include "media/downloader.h"
+#include "media/outro_card.h"
 #include "media/silence.h"
 #include "out/manifest.h"
 
@@ -26,6 +27,21 @@ namespace fs = std::filesystem;
 namespace crux {
 
 namespace {
+
+// Truncates a UTF-8 string to at most `max_bytes`, walking back to a valid
+// codepoint boundary. Prevents partial multi-byte sequences from breaking
+// JSON serialization (nlohmann::json throws on invalid UTF-8).
+std::string utf8_truncate(std::string s, std::size_t max_bytes) {
+    if (s.size() <= max_bytes) return s;
+    s.resize(max_bytes);
+    while (!s.empty()) {
+        unsigned char c = static_cast<unsigned char>(s.back());
+        if (c < 0x80) break;               // ASCII — safe to end here
+        if ((c & 0xC0) == 0xC0) { s.pop_back(); break; }  // leading byte
+        s.pop_back();                       // continuation byte, keep walking
+    }
+    return s;
+}
 
 std::string default_out_dir(const std::string& id) {
     return (fs::path("out") / id).string();
@@ -270,7 +286,7 @@ int run_pipeline(const Config& cfg_in) {
                 c.centroid_sec = (c.start_sec + c.end_sec) / 2.0;
             }
             captions::snap_to_cues(caption_doc, 3.0, c.start_sec, c.end_sec);
-            if (c.label.empty() && best) c.label = best->hook_text.substr(0, 80);
+            if (c.label.empty() && best) c.label = utf8_truncate(best->hook_text, 80);
         }
         write_captions_json(cfg.out_dir, caption_lang, caption_mode,
                             cfg.caption_weight, caption_score);
@@ -332,6 +348,32 @@ int run_pipeline(const Config& cfg_in) {
         return 4;
     }
 
+    // Thumbnail for the clip intro card ("which video is this from").
+    // Best-effort: a failed fetch just means plain clips.
+    std::string thumb_path;
+    if (cfg.intro_card) {
+        if (auto t = fetch::fetch_thumbnail(
+                fr.video.url.empty() ? cfg.url_or_id : fr.video.url, cfg,
+                (fs::path(work_dir) / "assets").string()))
+            thumb_path = *t;
+        else
+            spdlog::warn("thumbnail unavailable — cutting clips without intro card");
+    }
+
+    // Outro "Watch full video here" card, one JPG shared by every clip.
+    std::string outro_path;
+    if (cfg.outro_card && !fr.video.channel_url.empty()) {
+        std::string assets_dir = (fs::path(work_dir) / "assets" / "channel").string();
+        if (auto assets = fetch::fetch_channel_assets(fr.video.channel_url, cfg,
+                                                     assets_dir)) {
+            std::string card = (fs::path(work_dir) / "assets" / "outro.jpg").string();
+            if (auto p = media::render_outro_card(fr.video, *assets, cfg, card))
+                outro_path = *p;
+        }
+        if (outro_path.empty())
+            spdlog::warn("outro card unavailable — cutting clips without it");
+    }
+
     int clip_i = 0;
     for (auto& c : plan.clips) {
         ++clip_i;
@@ -348,7 +390,8 @@ int run_pipeline(const Config& cfg_in) {
             c.end_sec - c.start_sec, c.file.c_str());
         std::string out_file = (fs::path(cfg.out_dir) / c.file).string();
         try {
-            media::cut_clip(dl.source_file, c, dl, cfg.format, cfg, out_file);
+            media::cut_clip(dl.source_file, c, dl, cfg.format, cfg, out_file,
+                            thumb_path, outro_path);
         } catch (const std::exception& e) {
             std::fprintf(stderr, "error: ffmpeg cut failed for clip %d: %s\n",
                          c.index, e.what());
@@ -359,6 +402,32 @@ int run_pipeline(const Config& cfg_in) {
     // Rewrite manifest so file paths are final (they were already correct, but
     // this keeps the door open for M4 silence-snap post-processing).
     out::write_manifest(cfg.out_dir, fr.video, cfg, true, plan.quality, plan.clips);
+
+    // Every clip cut fine — drop the big downloaded intermediates so out/
+    // only holds the shorts (README in out/ documents the layout). Subtitles
+    // and the thumbnail (a few hundred KB) stay for reference.
+    if (!cfg.keep_source) {
+        std::uintmax_t freed = 0;
+        auto rm = [&freed](const fs::path& f) {
+            std::error_code ec;
+            auto sz = fs::file_size(f, ec);
+            if (ec) return;
+            if (fs::remove(f, ec) && !ec) freed += sz;
+        };
+        rm(dl.source_file);
+        for (const auto& f : dl.per_clip_files)
+            if (!f.empty()) rm(f);
+        std::error_code ec;
+        for (const auto& e : fs::directory_iterator(work_dir, ec)) {
+            if (!e.is_regular_file()) continue;
+            auto ext = e.path().extension().string();
+            if (ext == ".mp4" || ext == ".webm" || ext == ".m4a" || ext == ".part")
+                rm(e.path());
+        }
+        if (freed > 0)
+            std::printf("    freed %.1f MB of source video (--keep-source to keep it)\n",
+                        static_cast<double>(freed) / (1024.0 * 1024.0));
+    }
 
     if (cfg.json_stdout) {
         std::printf("{\"clips\":%zu,\"out\":\"%s\"}\n",

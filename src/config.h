@@ -69,6 +69,25 @@ struct Config {
     // (w=1) drive planning for the ~11% of videos with no heatmap.
     double caption_weight = 0.4;
 
+    // Intro card: overlay the source video's thumbnail on the first
+    // intro_sec seconds of every clip (with a synthesized whoosh) so viewers
+    // see which video the short came from. The clip audio starts at t=0 —
+    // the hook is never delayed.
+    bool intro_card = true;
+    double intro_sec = 1.5;
+
+    // Outro card: append a "Watch full video here" card built from the
+    // channel's banner + avatar for outro_sec seconds. Crossfades in from
+    // the clip so the reel doesn't hard-cut. 916blur/916crop only.
+    bool outro_card = true;
+    double outro_sec = 2.0;
+
+    // Space: after a fully successful run the downloaded source video (and
+    // per-clip intermediates) are deleted from work/ — only the generated
+    // clips are kept. --keep-source opts out (e.g. to iterate on clip params
+    // without re-downloading).
+    bool keep_source = false;
+
     // Flow controls
     bool dry_run = false;
     bool dump_heatmap = false;

@@ -52,4 +52,6 @@ vcpkg/packages/
 third_party/
 !third_party/.
 
-out/
+# Generated clips + run artifacts. The README documenting the layout ships.
+out/*
+!out/README.md
