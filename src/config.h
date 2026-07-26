@@ -82,6 +82,17 @@ struct Config {
     bool outro_card = true;
     double outro_sec = 2.0;
 
+    // Burned-in subtitles: overlay the fetched caption cues on the inner
+    // 16:9 video (bottom edge, white with outline). 916blur/916crop only —
+    // Orig keeps the untouched stream. Requires captions to be fetched
+    // (i.e. --detect fused|captions).
+    bool subtitles = true;
+    int subtitle_size = 44;
+    // Auto-transliterate Devanagari/Nastaliq caption text to Latin
+    // (Hinglish/Roman-Urdu) so shorts stay readable on phones. English
+    // captions pass through unchanged. --original-script disables it.
+    bool subtitle_romanize = true;
+
     // Space: after a fully successful run the downloaded source video (and
     // per-clip intermediates) are deleted from work/ — only the generated
     // clips are kept. --keep-source opts out (e.g. to iterate on clip params

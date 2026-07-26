@@ -4,28 +4,85 @@
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <filesystem>
+#include <thread>
 #include <vector>
 
 namespace fs = std::filesystem;
 
 namespace crux::fetch {
 
-std::optional<SubsResult> fetch_subtitles(const std::string& url_or_id,
-                                          const Config& cfg,
-                                          const std::string& dir) {
-    const std::string exe = binres::resolve_ytdlp(cfg.ytdlp_path);
-    fs::create_directories(dir);
-    const std::string out_tpl = (fs::path(dir) / "subs").string();
+namespace {
 
+// Any .vtt in `dir` counts as a partial success — even if yt-dlp exited
+// non-zero we may already have one of the requested languages on disk.
+bool any_vtt_present(const std::string& dir) {
+    std::error_code ec;
+    for (const auto& e : fs::directory_iterator(dir, ec)) {
+        if (e.path().extension() == ".vtt") return true;
+    }
+    return false;
+}
+
+// yt-dlp surfaces the origin's HTTP response verbatim. YouTube's rate limit
+// is a distinct failure mode we want to retry instead of falling straight
+// through to the "no captions" branch.
+bool is_rate_limited(const std::string& stderr_text) {
+    return stderr_text.find("HTTP Error 429") != std::string::npos ||
+           stderr_text.find("Too Many Requests") != std::string::npos;
+}
+
+// Signalled to callers so the pipeline can print a clearer error when it
+// exhausts both fallbacks (heatmap and captions) purely because of throttling.
+thread_local bool g_last_fetch_rate_limited = false;
+
+} // namespace
+
+bool subtitle_fetch_was_rate_limited() { return g_last_fetch_rate_limited; }
+
+namespace {
+
+// Splits "hi,ur,en" into ["hi", "ur", "en"]. Trims whitespace; ignores
+// empty tokens.
+std::vector<std::string> split_langs(const std::string& csv) {
+    std::vector<std::string> out;
+    std::string cur;
+    for (char c : csv) {
+        if (c == ',') {
+            if (!cur.empty()) out.push_back(cur);
+            cur.clear();
+        } else if (c == ' ' || c == '\t') {
+            // skip
+        } else {
+            cur.push_back(c);
+        }
+    }
+    if (!cur.empty()) out.push_back(cur);
+    return out;
+}
+
+// Try to download ONE language. Returns the .vtt path on success, empty on
+// terminal failure. Sets `rate_limited` if all internal retries hit HTTP 429.
+std::string fetch_one_language(const std::string& exe,
+                               const std::string& url_or_id,
+                               const std::string& dir,
+                               const std::string& out_tpl,
+                               const std::string& lang,
+                               const Config& cfg,
+                               bool& rate_limited) {
+    rate_limited = false;
     std::vector<std::string> args = {
         "--skip-download",
         "--write-subs",
         "--write-auto-subs",
-        "--sub-langs", cfg.captions_langs,
+        "--sub-langs", lang,
         "--sub-format", "vtt",
         "--no-warnings",
         "--no-playlist",
+        "--sleep-subtitles", "1",
+        "--retries",         "10",
+        "--retry-sleep",     "linear=1:8:2",
         "-o", out_tpl,
     };
     if (cfg.cookies_from_browser) {
@@ -39,23 +96,66 @@ std::optional<SubsResult> fetch_subtitles(const std::string& url_or_id,
     opts.capture_stderr = true;
     opts.timeout_ms = 120000;
 
-    spdlog::debug("running yt-dlp subtitle fetch: {}", exe);
-    proc::RunResult r = proc::run(exe, args, opts);
-    if (r.exit_code != 0) {
-        // Partial failures are common (one language 429s while another
-        // downloaded fine) — log and fall through to the directory scan.
-        spdlog::debug("subtitle fetch exit {} — checking for partial results: {}",
-                      r.exit_code, r.stderr_text);
+    // Per-language outer retry: yt-dlp's internal --retries handles brief
+    // 429s, we handle the multi-minute cool-off with these longer sleeps.
+    static const int kWaitSecs[] = {0, 30, 60};
+    proc::RunResult r;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        if (kWaitSecs[attempt] > 0) {
+            spdlog::info("caption fetch for '{}' rate-limited — waiting {} s "
+                         "and retrying (attempt {}/3)",
+                         lang, kWaitSecs[attempt], attempt + 1);
+            std::this_thread::sleep_for(
+                std::chrono::seconds(kWaitSecs[attempt]));
+        }
+        spdlog::debug("running yt-dlp subtitle fetch ({}): {}", lang, exe);
+        r = proc::run(exe, args, opts);
+        if (r.exit_code == 0) break;
+        spdlog::debug("subtitle fetch ({}) exit {}: {}",
+                      lang, r.exit_code, r.stderr_text);
+        if (!is_rate_limited(r.stderr_text)) break;
+        rate_limited = true;
     }
 
-    // yt-dlp writes subs.<lang>.vtt for every matched language. Pick by the
-    // research preference order: original speech first, then English.
-    static const char* kPreferred[] = {"hi", "ur", "en-orig", "en"};
-    for (const char* lang : kPreferred) {
-        fs::path p = fs::path(dir) / (std::string("subs.") + lang + ".vtt");
-        if (fs::exists(p)) return SubsResult{p.string(), lang};
+    // yt-dlp names the file subs.<lang>.vtt on success, but for some
+    // language codes YouTube substitutes a locale variant (en → en-US).
+    // First look for the exact match, then scan for any newly-arrived VTT
+    // (the dir may already have prior-language files, but if this call
+    // succeeded, `exists` on the exact-name path is the truth).
+    fs::path p = fs::path(dir) / (std::string("subs.") + lang + ".vtt");
+    if (fs::exists(p)) return p.string();
+    return {};
+}
+
+} // namespace
+
+std::optional<SubsResult> fetch_subtitles(const std::string& url_or_id,
+                                          const Config& cfg,
+                                          const std::string& dir) {
+    g_last_fetch_rate_limited = false;
+    const std::string exe = binres::resolve_ytdlp(cfg.ytdlp_path);
+    fs::create_directories(dir);
+    const std::string out_tpl = (fs::path(dir) / "subs").string();
+
+    // Walk the requested languages in the user's preferred order, but stop
+    // on the FIRST one that lands a .vtt on disk. This matters for two
+    // reasons: (a) each fetch is one YouTube request, so trying one at a
+    // time keeps us well under the per-IP rate window; (b) we don't need
+    // multiple translations of the same content, only the best-available.
+    std::vector<std::string> langs = split_langs(cfg.captions_langs);
+    if (langs.empty()) langs = {"en"};
+
+    bool any_rate_limited = false;
+    for (const auto& lang : langs) {
+        bool rl = false;
+        std::string path = fetch_one_language(exe, url_or_id, dir, out_tpl,
+                                              lang, cfg, rl);
+        if (!path.empty()) return SubsResult{path, lang};
+        if (rl) any_rate_limited = true;
     }
-    // Fallback: any .vtt that appeared (e.g. en-US).
+
+    // Nothing landed via the requested langs — do a final scan in case
+    // yt-dlp renamed a track (e.g. "en" → "en-US" locale substitution).
     std::error_code ec;
     for (const auto& e : fs::directory_iterator(dir, ec)) {
         if (e.path().extension() == ".vtt") {
@@ -65,6 +165,7 @@ std::optional<SubsResult> fetch_subtitles(const std::string& url_or_id,
             return SubsResult{e.path().string(), lang};
         }
     }
+    g_last_fetch_rate_limited = any_rate_limited;
     return std::nullopt;
 }
 

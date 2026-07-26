@@ -10,6 +10,7 @@
 #include "media/downloader.h"
 #include "media/outro_card.h"
 #include "media/silence.h"
+#include "media/subtitle_render.h"
 #include "out/manifest.h"
 
 #include <spdlog/spdlog.h>
@@ -185,11 +186,23 @@ int run_pipeline(const Config& cfg_in) {
     CaptionScore caption_score;
     std::string caption_lang, caption_mode = "off";
     if (captions_enabled) {
-        say("Fetching captions (%s)", cfg.captions_langs.c_str());
+        // Prefer captions in the video's declared native language when we
+        // know it — otherwise a language-agnostic fetch that puts "hi" first
+        // will pick Hindi auto-translations even on an English video. The
+        // user-facing captions_langs list is honored as fallback. This is a
+        // display-quality fix: native auto captions transcribe original
+        // audio directly, while translated tracks compound ASR + MT errors.
+        Config subs_cfg = cfg;
+        if (!fr.video.language.empty() &&
+            cfg.captions_langs.find(fr.video.language) != 0) {
+            subs_cfg.captions_langs = fr.video.language + "," + cfg.captions_langs;
+        }
+        say("Fetching captions (%s)", subs_cfg.captions_langs.c_str());
         std::string subs_dir = (fs::path(cfg.out_dir) / "work" / "subs").string();
         try {
             if (auto subs = fetch::fetch_subtitles(
-                    fr.video.url.empty() ? cfg.url_or_id : fr.video.url, cfg, subs_dir)) {
+                    fr.video.url.empty() ? cfg.url_or_id : fr.video.url,
+                    subs_cfg, subs_dir)) {
                 caption_doc = captions::parse_vtt(read_file(subs->vtt_path));
                 caption_doc.lang = subs->lang;
                 caption_lang = subs->lang;
@@ -243,10 +256,24 @@ int run_pipeline(const Config& cfg_in) {
         std::printf("    %s — planning from captions alone\n",
                     heatmap_wanted ? "no replay heatmap" : "--detect captions");
     } else {
-        std::fprintf(stderr,
-            "error: no heatmap available for this video, and no usable "
-            "captions to plan from. YouTube only exposes 'Most replayed' on "
-            "eligible videos (about 11%% of high-view videos lack it).\n");
+        // Compound failure: video has no heatmap AND we couldn't plan from
+        // captions. Distinguish the transient case (YouTube rate-limited
+        // the subtitle fetch) from the permanent one (video really has no
+        // captions) so the user knows whether "just retry" is the right
+        // next step.
+        if (captions_enabled && fetch::subtitle_fetch_was_rate_limited()) {
+            std::fprintf(stderr,
+                "error: no heatmap for this video, and YouTube rate-limited "
+                "the caption fetch (HTTP 429). This is transient — wait a "
+                "minute and retry, or add --cookies-from-browser chrome to "
+                "use your logged-in session (higher quota).\n");
+        } else {
+            std::fprintf(stderr,
+                "error: no heatmap available for this video, and no usable "
+                "captions to plan from. YouTube only exposes 'Most replayed' "
+                "on eligible videos (about 11%% of high-view videos lack "
+                "it).\n");
+        }
         return 2;
     }
 
@@ -374,6 +401,13 @@ int run_pipeline(const Config& cfg_in) {
             spdlog::warn("outro card unavailable — cutting clips without it");
     }
 
+    // Per-clip subtitle files are cached alongside the source in work/subs.
+    // Reused on retries; ignored (empty path) when no captions were fetched.
+    const bool subs_available =
+        cfg.subtitles && cfg.format != Format::Orig && !caption_doc.cues.empty();
+    const fs::path subs_out_dir = fs::path(cfg.out_dir) / "work" / "subs";
+    if (subs_available) fs::create_directories(subs_out_dir);
+
     int clip_i = 0;
     for (auto& c : plan.clips) {
         ++clip_i;
@@ -389,9 +423,27 @@ int run_pipeline(const Config& cfg_in) {
             hms(c.start_sec).c_str(), hms(c.end_sec).c_str(),
             c.end_sec - c.start_sec, c.file.c_str());
         std::string out_file = (fs::path(cfg.out_dir) / c.file).string();
+
+        std::string subtitle_file;
+        if (subs_available) {
+            char subname[64];
+            std::snprintf(subname, sizeof(subname), "clip_%02d.ass", c.index);
+            fs::path ass = subs_out_dir / subname;
+            media::SubtitleStyle style;
+            style.font_size = cfg.subtitle_size;
+            // Subtitle timing is clip-relative — the intro xfade already
+            // hides them until the reframed video becomes visible, so no
+            // extra offset is needed here.
+            if (media::write_clip_ass(caption_doc,
+                                      c.start_sec, c.end_sec, 0.0,
+                                      style, ass.string(),
+                                      cfg.subtitle_romanize, caption_lang))
+                subtitle_file = ass.string();
+        }
+
         try {
             media::cut_clip(dl.source_file, c, dl, cfg.format, cfg, out_file,
-                            thumb_path, outro_path);
+                            thumb_path, outro_path, subtitle_file);
         } catch (const std::exception& e) {
             std::fprintf(stderr, "error: ffmpeg cut failed for clip %d: %s\n",
                          c.index, e.what());

@@ -51,6 +51,13 @@ FetchResult parse_ytdlp_json(const std::string& text) {
             j["channel_follower_count"].get<long long>();
     r.video.url     = j.contains("webpage_url") ? as_string(j["webpage_url"]) : "";
     r.video.duration_sec = j.contains("duration") ? as_number(j["duration"]) : 0.0;
+    // Video's declared audio/upload language. yt-dlp exposes this as
+    // `language` (2-letter ISO code) when the uploader set it; falls back
+    // to `original_language` on some extractors.
+    if (j.contains("language") && j["language"].is_string())
+        r.video.language = j["language"].get<std::string>();
+    else if (j.contains("original_language") && j["original_language"].is_string())
+        r.video.language = j["original_language"].get<std::string>();
 
     // Detect live/premiere.
     if (j.contains("is_live") && j["is_live"].is_boolean() && j["is_live"].get<bool>())

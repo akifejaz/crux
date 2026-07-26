@@ -3,6 +3,7 @@
 #include "binres.h"
 #include "media/intro_assets.h"
 #include "media/proc.h"
+#include "media/subtitle_render.h"
 
 #include <spdlog/spdlog.h>
 
@@ -75,8 +76,17 @@ std::vector<std::string> build_cut_args(const std::string& input,
                                         const std::string& play_png,
                                         const std::string& cursor_png,
                                         const std::string& outro_path,
+                                        const std::string& subtitle_file,
                                         bool with_intro,
                                         bool with_outro) {
+    // Subtitles are burned onto the inner-video branch (fg only, not the
+    // blurred backdrop). Timing is clip-relative — the intro xfade already
+    // hides them until the reframed video becomes visible.
+    const bool with_subs = !subtitle_file.empty() && fmt != Format::Orig;
+    const std::string subs_filter = with_subs
+        ? ",subtitles=filename='" +
+              crux::media::escape_ass_path_for_filter(subtitle_file) + "'"
+        : std::string();
     std::vector<std::string> args = {
         "-y",
         "-loglevel", "warning",
@@ -134,7 +144,7 @@ std::vector<std::string> build_cut_args(const std::string& input,
         std::ostringstream g;
         // Main video branch always runs through the reframe filter.
         g << filt << ";";
-        g << "[v]fps=30,setsar=1,format=yuv420p,settb=AVTB[main_v];";
+        g << "[v]fps=30,setsar=1,format=yuv420p,settb=AVTB" << subs_filter << "[main_v];";
 
         // The "current" merged video/audio labels — we chain xfades onto them.
         std::string cur_v = "[main_v]";
@@ -214,10 +224,16 @@ std::vector<std::string> build_cut_args(const std::string& input,
             "-map", "[ao]",
         });
     } else if (filt) {
+        std::string graph = filt;
+        std::string video_label = "[v]";
+        if (with_subs) {
+            graph = graph + ";[v]" + subs_filter.substr(1) + "[vsub]";
+            video_label = "[vsub]";
+        }
         args.insert(args.end(), {
-            "-filter_complex", filt,
+            "-filter_complex", graph,
             // Explicit stream mapping: filtered video + optional audio track.
-            "-map", "[v]",
+            "-map", video_label,
             "-map", "0:a?",
         });
     }
@@ -240,7 +256,8 @@ void cut_clip(const std::string& source_file,
               const Config& cfg,
               const std::string& out_file,
               const std::string& thumb_path,
-              const std::string& outro_path) {
+              const std::string& outro_path,
+              const std::string& subtitle_file) {
     const std::string ffmpeg = binres::resolve_ffmpeg(cfg.ffmpeg_path);
 
     // Pick the actual input file. Three cases:
@@ -302,7 +319,8 @@ void cut_clip(const std::string& source_file,
 
     std::vector<std::string> args =
         build_cut_args(input, s, e, fmt, cfg, out_file, thumb_path,
-                       play_png, cursor_png, outro_path, with_intro, with_outro);
+                       play_png, cursor_png, outro_path, subtitle_file,
+                       with_intro, with_outro);
     proc::RunResult r = proc::run(ffmpeg, args, opts);
     if (r.exit_code != 0 && (with_intro || with_outro)) {
         // The intro/outro graph assumes an audio track, decodable thumbnail,
@@ -311,7 +329,8 @@ void cut_clip(const std::string& source_file,
         spdlog::warn("intro/outro graph failed (exit {}) — retrying without them",
                      r.exit_code);
         args = build_cut_args(input, s, e, fmt, cfg, out_file, thumb_path,
-                              play_png, cursor_png, outro_path, false, false);
+                              play_png, cursor_png, outro_path, subtitle_file,
+                              false, false);
         r = proc::run(ffmpeg, args, opts);
     }
     if (r.exit_code != 0) {

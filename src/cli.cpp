@@ -76,6 +76,16 @@ CliResult parse_cli(int argc, char** argv) {
         "Outro card duration in seconds (default 2.0)")
         ->check(CLI::Range(1.0, 5.0));
 
+    bool no_subtitles = false;
+    app.add_flag("--no-subtitles", no_subtitles,
+        "Disable burned-in subtitles on clips (916blur/916crop only)");
+    app.add_option("--subtitle-size", c.subtitle_size,
+        "Subtitle font size in ASS units at 1920px canvas (default 44)")
+        ->check(CLI::Range(16, 96));
+    bool original_script = false;
+    app.add_flag("--original-script", original_script,
+        "Keep Devanagari/Nastaliq subtitles as-is (default: transliterate to Latin)");
+
     app.add_flag("--dry-run",       c.dry_run,       "Plan only (no download)");
     app.add_flag("--dump-heatmap",  c.dump_heatmap,  "Write heatmap.json + ASCII sparkline");
     app.add_flag("--json",          c.json_stdout,   "Machine-readable stdout");
@@ -117,6 +127,8 @@ CliResult parse_cli(int argc, char** argv) {
     if (c.no_captions) c.detect = DetectMode::Heatmap;
     if (no_intro_card) c.intro_card = false;
     if (no_outro_card) c.outro_card = false;
+    if (no_subtitles)  c.subtitles = false;
+    if (original_script) c.subtitle_romanize = false;
 
     r.should_run = true;
     return r;

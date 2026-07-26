@@ -27,6 +27,11 @@ struct VideoMeta {
     std::string url;
     double duration_sec = 0.0;
     bool is_live = false;
+    // Video's declared audio/upload language (e.g. "en", "hi", "ur"). Empty
+    // when yt-dlp didn't report one. The subtitle picker uses this to prefer
+    // native-language captions over machine-translated tracks — otherwise an
+    // English video gets Hindi auto-translations picked up as "first hit".
+    std::string language;
 };
 
 // Raw heatmap as returned by yt-dlp: 100 spans with normalized value 0..1.

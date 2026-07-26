@@ -102,6 +102,8 @@ add_library(crux_core STATIC
     src/media/intro_assets.cpp
     src/media/outro_card.cpp
     src/media/silence.cpp
+    src/media/subtitle_render.cpp
+    src/media/transliterate.cpp
     src/out/manifest.cpp
     src/pipeline.cpp
     src/cli.cpp
@@ -149,6 +151,7 @@ add_executable(crux_tests
     tests/proc_test.cpp
     tests/downloader_strategy_test.cpp
     tests/captions_test.cpp
+    tests/transliterate_test.cpp
 )
 target_link_libraries(crux_tests PRIVATE crux_core doctest::doctest)
 target_compile_definitions(crux_tests PRIVATE

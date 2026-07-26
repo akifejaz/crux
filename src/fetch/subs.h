@@ -16,10 +16,17 @@ struct SubsResult {
 // `dir` via yt-dlp. Preference order follows the research: original-language
 // auto captions first (hi, ur), then native/translated English.
 // Returns std::nullopt when the video has no captions — callers degrade
-// gracefully to heatmap-only planning.
+// gracefully to heatmap-only planning. Retries transparently on YouTube's
+// HTTP 429 with 0/15/30 s backoff.
 std::optional<SubsResult> fetch_subtitles(const std::string& url_or_id,
                                           const Config& cfg,
                                           const std::string& dir);
+
+// True when the most recent fetch_subtitles() call on this thread returned
+// nullopt purely because YouTube rate-limited every attempt. Lets the
+// pipeline print a "wait a minute and retry" message instead of the generic
+// "video has no captions" fallback.
+bool subtitle_fetch_was_rate_limited();
 
 // Downloads the video's thumbnail as JPEG into `dir` via yt-dlp (for the
 // clip intro card). Returns the image path, or std::nullopt on failure —

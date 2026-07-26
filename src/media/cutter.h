@@ -27,6 +27,7 @@ void cut_clip(const std::string& source_file,
               const Config& cfg,
               const std::string& out_file,
               const std::string& thumb_path = {},
-              const std::string& outro_path = {});
+              const std::string& outro_path = {},
+              const std::string& subtitle_file = {});
 
 } // namespace crux::media
