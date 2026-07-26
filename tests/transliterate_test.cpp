@@ -67,6 +67,52 @@ TEST_CASE("loanword dictionary — brands and acronyms keep their case") {
     CHECK(devanagari_to_latin("वीडियो में") == "video men");
 }
 
+TEST_CASE("loanword dictionary — user complaint: common English words must be real English") {
+    // The user pointed out that words like "straight", "simple", "tension"
+    // appearing phonetically in Devanagari were being transliterated to
+    // gibberish ("stret", "sinple", "tenshan"). These MUST come out as
+    // real English dictionary spellings.
+    CHECK(devanagari_to_latin("स्ट्रेट") == "straight");
+    CHECK(devanagari_to_latin("सिंपल") == "simple");
+    CHECK(devanagari_to_latin("टेंशन") == "tension");
+    CHECK(devanagari_to_latin("प्रेशर") == "pressure");
+    CHECK(devanagari_to_latin("सिचुएशन") == "situation");
+    CHECK(devanagari_to_latin("मोमेंट") == "moment");
+    CHECK(devanagari_to_latin("इंपॉर्टेंट") == "important");
+    CHECK(devanagari_to_latin("डिफिकल्ट") == "difficult");
+    CHECK(devanagari_to_latin("परफेक्ट") == "perfect");
+    CHECK(devanagari_to_latin("नॉर्मल") == "normal");
+    CHECK(devanagari_to_latin("स्पेशल") == "special");
+    CHECK(devanagari_to_latin("एग्जांपल") == "example");
+    CHECK(devanagari_to_latin("रीजन") == "reason");
+    CHECK(devanagari_to_latin("प्रॉब्लम") == "problem");
+    CHECK(devanagari_to_latin("इंटरव्यू") == "interview");
+    CHECK(devanagari_to_latin("रिसर्च") == "research");
+    CHECK(devanagari_to_latin("गवर्नमेंट") == "government");
+    CHECK(devanagari_to_latin("मिनिस्टर") == "minister");
+    CHECK(devanagari_to_latin("इन्वेस्टिगेशन") == "investigation");
+    CHECK(devanagari_to_latin("एविडेंस") == "evidence");
+}
+
+TEST_CASE("fuzzy English recovery — words NOT in the loanword dict come out as English") {
+    // These aren't in kDevaLoanwords. Recovery must find them via the 3000-
+    // word bucketed lookup after phonetic transliteration.  For genuinely
+    // ambiguous cases (e.g. "relevens" is 1 edit closer to "relevant" than
+    // to "relevance") accept either — the point is REAL English, not gibberish.
+    CHECK(devanagari_to_latin("एक्टिविटी") == "activity");
+    auto rel = devanagari_to_latin("रेलेवेंस");
+    CHECK((rel == "relevant" || rel == "relevance"));
+    CHECK(devanagari_to_latin("पेरेंट्स") == "parents");
+}
+
+
+TEST_CASE("loanword dictionary — mixed sentence") {
+    // Real-world example: mix of native Hindi + English loanwords.
+    auto out = devanagari_to_latin(
+        "ये बहुत सिंपल बात है और इसमें कोई टेंशन नहीं");
+    CHECK(out == "ye bahut simple bat hai aur ismen koi tension nahin");
+}
+
 TEST_CASE("write_clip_ass — English lang stays English even with romanize=true") {
     // For an English video the fetched lang is "en" (or "en-orig", "en-US"),
     // and cue text is Latin. The ASS writer must emit the cues without any
@@ -88,11 +134,13 @@ TEST_CASE("write_clip_ass — English lang stays English even with romanize=true
     std::ostringstream ss; ss << in.rdbuf();
     std::string content = ss.str();
     // Words survive verbatim (no phonetic mangling), and land on the
-    // balanced 2-line layout: 7 words → 4 + 3, 8 words → 4 + 4.
-    CHECK(content.find("The FBI issued a\\N") != std::string::npos);
+    // single-line-per-sub-cue layout: 7 words → 4 + 3 sub-cues, 8 → 4 + 4.
+    CHECK(content.find("The FBI issued a") != std::string::npos);
     CHECK(content.find("crackdown last month.") != std::string::npos);
-    CHECK(content.find("You can watch the\\N") != std::string::npos);
+    CHECK(content.find("You can watch the") != std::string::npos);
     CHECK(content.find("full report on YouTube.") != std::string::npos);
+    // Single line default — no forced `\N` in the emitted dialogue.
+    CHECK(content.find("\\N") == std::string::npos);
 }
 
 TEST_CASE("tokenize_words — whitespace splitting is UTF-8 safe") {

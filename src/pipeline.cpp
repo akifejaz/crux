@@ -9,8 +9,8 @@
 #include "media/cutter.h"
 #include "media/downloader.h"
 #include "media/outro_card.h"
-#include "media/silence.h"
 #include "media/subtitle_render.h"
+#include "media/text_util.h"
 #include "out/manifest.h"
 
 #include <spdlog/spdlog.h>
@@ -29,26 +29,14 @@ namespace crux {
 
 namespace {
 
-// Truncates a UTF-8 string to at most `max_bytes`, walking back to a valid
-// codepoint boundary. Prevents partial multi-byte sequences from breaking
-// JSON serialization (nlohmann::json throws on invalid UTF-8).
-std::string utf8_truncate(std::string s, std::size_t max_bytes) {
-    if (s.size() <= max_bytes) return s;
-    s.resize(max_bytes);
-    while (!s.empty()) {
-        unsigned char c = static_cast<unsigned char>(s.back());
-        if (c < 0x80) break;               // ASCII — safe to end here
-        if ((c & 0xC0) == 0xC0) { s.pop_back(); break; }  // leading byte
-        s.pop_back();                       // continuation byte, keep walking
-    }
-    return s;
-}
+using text::hms;
+using text::utf8_truncate;
 
 std::string default_out_dir(const std::string& id) {
     return (fs::path("out") / id).string();
 }
 
-std::string clip_filename(const Clip& c, Format /*fmt*/) {
+std::string clip_filename(const Clip& c) {
     // clip_NN_HHMMSS.mp4
     int total = static_cast<int>(c.start_sec + 0.5);
     int h = total / 3600, m = (total % 3600) / 60, s = total % 60;
@@ -94,13 +82,6 @@ void print_caption_candidates(const CaptionScore& cs) {
                 "#", "start", "end", "score", "4bt", "cold", "hook");
     int i = 0;
     for (const auto& c : cs.candidates) {
-        auto hms = [](double t) {
-            int T = static_cast<int>(t + 0.5);
-            char b[16];
-            std::snprintf(b, sizeof(b), "%02d:%02d:%02d",
-                          T / 3600, (T % 3600) / 60, T % 60);
-            return std::string(b);
-        };
         std::string hook = c.hook_text.substr(0, 72);
         std::printf("%-3d  %-10s  %-10s  %-7.1f  %-4s  %-4s  %s\n",
                     ++i, hms(c.start_sec).c_str(), hms(c.end_sec).c_str(),
@@ -117,13 +98,6 @@ void print_dry_run_table(const Plan& p, const VideoMeta& v, const Heatmap& h) {
     std::printf("%-3s  %-10s  %-10s  %-6s  %-6s  %-5s  %s\n",
                 "#", "start", "end", "dur", "peak", "bin", "label");
     for (const auto& c : p.clips) {
-        auto hms = [](double t) {
-            int total = static_cast<int>(t + 0.5);
-            char b[16];
-            std::snprintf(b, sizeof(b), "%02d:%02d:%02d",
-                          total / 3600, (total % 3600) / 60, total % 60);
-            return std::string(b);
-        };
         std::printf("%-3d  %-10s  %-10s  %-6.1f  %-6.3f  %-5d  %s\n",
                     c.index, hms(c.start_sec).c_str(), hms(c.end_sec).c_str(),
                     c.end_sec - c.start_sec, c.peak_score, c.peak_bin,
@@ -327,7 +301,7 @@ int run_pipeline(const Config& cfg_in) {
     }
 
     // Attach filenames and write manifest early (so --dry-run has it).
-    for (auto& c : plan.clips) c.file = clip_filename(c, cfg.format);
+    for (auto& c : plan.clips) c.file = clip_filename(c);
     out::write_manifest(cfg.out_dir, fr.video, cfg, true, plan.quality, plan.clips);
 
     // Refine total_steps now that we know the real number of clips.
@@ -411,13 +385,6 @@ int run_pipeline(const Config& cfg_in) {
     int clip_i = 0;
     for (auto& c : plan.clips) {
         ++clip_i;
-        auto hms = [](double t) {
-            int T = static_cast<int>(t + 0.5);
-            char b[16];
-            std::snprintf(b, sizeof(b), "%02d:%02d:%02d",
-                          T / 3600, (T % 3600) / 60, T % 60);
-            return std::string(b);
-        };
         say("Cutting clip %d/%zu  %s..%s  %.0fs  → %s",
             clip_i, plan.clips.size(),
             hms(c.start_sec).c_str(), hms(c.end_sec).c_str(),
@@ -451,8 +418,7 @@ int run_pipeline(const Config& cfg_in) {
         }
     }
 
-    // Rewrite manifest so file paths are final (they were already correct, but
-    // this keeps the door open for M4 silence-snap post-processing).
+    // Rewrite manifest so file paths are final.
     out::write_manifest(cfg.out_dir, fr.video, cfg, true, plan.quality, plan.clips);
 
     // Every clip cut fine — drop the big downloaded intermediates so out/

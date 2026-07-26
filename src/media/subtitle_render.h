@@ -11,26 +11,27 @@ namespace crux::media {
 
 struct SubtitleStyle {
     // ASS font size in the reference coord system (PlayResX/Y below). At
-    // PlayResY=1920 this maps roughly 1:1 to output pixels; ~84-96 reads
-    // as "shorts-size" subtitles at typical phone-viewing distance.
-    int font_size = 88;
+    // PlayResY=1920 this maps roughly 1:1 to output pixels. 180 reads BIG at
+    // phone distance — the "shouty caption" size viral reels use.
+    int font_size = 180;
     // Layout target — matches the 9:16 output canvas. Position math (below)
     // assumes PlayResY=1920.
     int play_res_x = 1080;
     int play_res_y = 1920;
-    // Vertical margin from the bottom of the canvas in ASS units. With a
-    // 16:9 source scaled to 1080 wide, the inner video's bottom edge sits
-    // at y=(1920+608)/2 ≈ 1264. For an 88-px 2-line block (~210 tall),
-    // MarginV=420 puts the block's top just below the video edge — the
-    // text sits right where the faded blur bar begins.
+    // Distance from the bottom of the canvas to the bottom of the text block
+    // (ASS Alignment=2). Smaller value → text sits lower on the canvas.
+    // 420 puts the block just below the video/blur boundary — a bit lower
+    // than the previous 580 per user request.
     int margin_v = 420;
-    // Horizontal padding — kept generous so 4-word lines never touch the
+    // Horizontal padding — kept generous so 3-word lines never touch the
     // canvas edges.
-    int margin_lr = 40;
-    // Cue-level tuning: cues longer than max_words_per_cue are split
-    // temporally into equal-word sub-cues, and any sub-cue with more than
-    // words_per_line words gets one balanced line break.
-    int max_words_per_cue = 8;
+    int margin_lr = 60;
+    // Cue-level tuning: single-line default. Cues longer than
+    // max_words_per_cue split temporally into equal-word sub-cues; each
+    // sub-cue emits ONE line (no forced `\N`).  Only if that line exceeds
+    // the render width does libass auto-wrap to a second line — user says
+    // that edge case is acceptable.
+    int max_words_per_cue = 4;
     int words_per_line = 4;
 };
 

@@ -4,6 +4,7 @@
 #include "media/intro_assets.h"
 #include "media/proc.h"
 #include "media/subtitle_render.h"
+#include "media/text_util.h"
 
 #include <spdlog/spdlog.h>
 
@@ -38,10 +39,7 @@ const char* filter_for(Format f) {
     return nullptr;
 }
 
-std::string ftos(double v) {
-    std::ostringstream oss; oss.setf(std::ios::fixed); oss.precision(3); oss << v;
-    return oss.str();
-}
+using text::ftos;
 
 void preflight_input(const std::string& path) {
     std::error_code ec;

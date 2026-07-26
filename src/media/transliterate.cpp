@@ -1,5 +1,7 @@
 #include "media/transliterate.h"
 
+#include "media/english_words.h"
+
 #include <cstdint>
 #include <cstddef>
 #include <unordered_map>
@@ -223,6 +225,16 @@ const char* arab_letter(std::uint32_t cp, bool at_word_start) {
 }
 
 // ---- Word-boundary helper ----------------------------------------------
+// Flush a Devanagari word through the 3-stage recovery:
+//   1. hand-curated loanword dictionary (highest quality, brand casing, etc.)
+//   2. phonetic transliteration (always produces SOMETHING)
+//   3. fuzzy English match against a 3000-word bucketed list (recovers
+//      "ektiviti" → "activity" without needing a dictionary entry).
+// Stage 3 is skipped for output that looks native or too short; see the
+// guards in english_recover.cpp.  Any hit at stage 1 or 3 replaces the
+// phonetic output; stage 2 is the fallback.
+void emit_deva_word(const std::string& buf, std::string& out);
+
 // Any non-script, non-alphanumeric codepoint ends a Devanagari/Urdu word so
 // we can drop the final schwa. Whitespace, punctuation, digits all count.
 bool is_word_boundary_cp(std::uint32_t cp) {
@@ -405,6 +417,477 @@ const DevaLoan kDevaLoanwords[] = {
     {"स्कैंडल",     "scandal"},
     {"पोलीस",       "police"},
     {"पुलिस",       "police"},
+
+    // ---- Descriptive adjectives (state, quality, size, temperament) ----
+    {"सिंपल",       "simple"},
+    {"सिम्पल",      "simple"},
+    {"कॉम्प्लेक्स",  "complex"},
+    {"डिफिकल्ट",    "difficult"},
+    {"डिफ्फिकल्ट",  "difficult"},
+    {"ईज़ी",        "easy"},
+    {"ईजी",         "easy"},
+    {"टफ",          "tough"},
+    {"हार्ड",       "hard"},
+    {"स्ट्रेट",     "straight"},
+    {"डायरेक्ट",    "direct"},
+    {"इनडायरेक्ट",  "indirect"},
+    {"क्लीयर",      "clear"},
+    {"क्लियर",      "clear"},
+    {"पर्फेक्ट",    "perfect"},
+    {"परफेक्ट",    "perfect"},
+    {"नॉर्मल",      "normal"},
+    {"स्पेशल",     "special"},
+    {"यूनीक",       "unique"},
+    {"कॉमन",        "common"},
+    {"रेगुलर",      "regular"},
+    {"इर्रेगुलर",   "irregular"},
+    {"पॉपुलर",      "popular"},
+    {"फेमस",        "famous"},
+    {"इंपॉर्टेंट",   "important"},
+    {"अर्जेंट",     "urgent"},
+    {"सीरियस",      "serious"},
+    {"जेनुइन",      "genuine"},
+    {"फेक",         "fake"},
+    {"रियल",        "real"},
+    {"असली",        "real"},   // native word, but common enough to keep
+    {"नकली",        "fake"},   // native
+    {"बिग",         "big"},
+    {"स्मॉल",       "small"},
+    {"ह्यूज",       "huge"},
+    {"मैसिव",       "massive"},
+    {"टिनी",        "tiny"},
+    {"लॉन्ग",       "long"},
+    {"शॉर्ट",       "short"},
+    {"न्यू",        "new"},
+    {"ओल्ड",        "old"},
+    {"यंग",         "young"},
+    {"फ्रेश",       "fresh"},
+    {"क्लीन",       "clean"},
+    {"डर्टी",       "dirty"},
+    {"सेफ",         "safe"},
+    {"डेंजरस",      "dangerous"},
+    {"रिस्की",      "risky"},
+    {"चीप",         "cheap"},
+    {"एक्सपेंसिव",  "expensive"},
+    {"कॉस्टली",     "costly"},
+    {"हैप्पी",      "happy"},
+    {"सैड",         "sad"},
+    {"एंग्री",      "angry"},
+    {"शांत",        "calm"},
+    {"हॉट",         "hot"},
+    {"कोल्ड",       "cold"},
+    {"वार्म",       "warm"},
+    {"स्ट्रॉन्ग",   "strong"},
+    {"वीक",         "weak"},
+    {"स्मार्ट",     "smart"},
+    {"डम्ब",        "dumb"},
+    {"क्रेजी",      "crazy"},
+
+    // ---- Feelings / states (very high frequency in podcasts) ----
+    {"टेंशन",       "tension"},
+    {"स्ट्रेस",     "stress"},
+    {"प्रेशर",      "pressure"},
+    {"डिप्रेशन",    "depression"},
+    {"एंग्ज़ाइटी",   "anxiety"},
+    {"पैनिक",       "panic"},
+    {"शॉक",         "shock"},
+    {"फियर",        "fear"},
+    {"ट्रॉमा",      "trauma"},
+    {"मूड",         "mood"},
+    {"फीलिंग",      "feeling"},
+    {"इमोशन",       "emotion"},
+    {"इमोशनल",      "emotional"},
+    {"कॉन्फिडेंस",  "confidence"},
+    {"कॉन्फिडेंट",  "confident"},
+    {"ट्रस्ट",      "trust"},
+    {"होप",         "hope"},
+
+    // ---- Situations / abstract nouns ----
+    {"सिचुएशन",     "situation"},
+    {"कंडीशन",     "condition"},
+    {"मोमेंट",     "moment"},
+    {"चांस",        "chance"},
+    {"अपॉर्च्युनिटी","opportunity"},
+    {"रीजन",        "reason"},
+    {"कॉज",         "cause"},
+    {"रिजल्ट",      "result"},
+    {"आउटकम",       "outcome"},
+    {"इफेक्ट",      "effect"},
+    {"इंपैक्ट",     "impact"},
+    {"चैलेंज",     "challenge"},
+    {"रिस्क",       "risk"},
+    {"ऑप्शन",      "option"},
+    {"चॉइस",       "choice"},
+    {"डिसीजन",     "decision"},
+    {"आइडिया",     "idea"},
+    {"कॉन्सेप्ट",   "concept"},
+    {"पॉइंट",       "point"},
+    {"मैटर",        "matter"},
+    {"इश्यू",       "issue"},
+    {"थिंग",        "thing"},
+    {"एग्जांपल",    "example"},
+    {"केस",         "case"},
+    {"एग्जीक्यूशन", "execution"},
+    {"प्लान",       "plan"},
+    {"स्ट्रेटजी",   "strategy"},
+    {"स्ट्रैटेजी",  "strategy"},
+    {"गोल",         "goal"},
+    {"टार्गेट",     "target"},
+    {"पर्पस",       "purpose"},
+    {"वैल्यू",      "value"},
+    {"क्वालिटी",    "quality"},
+    {"क्वांटिटी",   "quantity"},
+    {"साइज़",       "size"},
+    {"शेप",         "shape"},
+    {"कलर",         "color"},
+
+    // ---- People / relationships ----
+    {"फैमिली",     "family"},
+    {"फ्रेंड",      "friend"},
+    {"फ्रेंड्स",    "friends"},
+    {"रिलेशनशिप",   "relationship"},
+    {"रिलेशन",      "relation"},
+    {"पार्टनर",     "partner"},
+    {"पर्सन",       "person"},
+    {"पीपल",        "people"},
+    {"पब्लिक",      "public"},
+    {"प्राइवेट",    "private"},
+    {"कस्टमर",      "customer"},
+    {"क्लाइंट",     "client"},
+    {"बॉस",         "boss"},
+    {"मैनेजर",      "manager"},
+    {"लीडर",        "leader"},
+    {"एक्सपर्ट",    "expert"},
+    {"प्रोफेशनल",   "professional"},
+    {"एमेच्योर",    "amateur"},
+    {"बिगिनर",      "beginner"},
+    {"वीयूअर",      "viewer"},
+    {"व्यूअर",      "viewer"},
+    {"ऑडियंस",      "audience"},
+    {"फैन",         "fan"},
+    {"फैंस",        "fans"},
+    {"फॉलोअर",      "follower"},
+    {"हेटर",        "hater"},
+    {"ट्रोल",       "troll"},
+    {"क्रिएटर",     "creator"},
+    {"राइटर",       "writer"},
+    {"स्पीकर",      "speaker"},
+    {"होस्ट",       "host"},
+    {"गेस्ट",       "guest"},
+
+    // ---- Professions ----
+    {"टीचर",        "teacher"},
+    {"स्टूडेंट",    "student"},
+    {"डॉक्टर",      "doctor"},
+    {"इंजीनियर",    "engineer"},
+    {"लॉयर",        "lawyer"},
+    {"वकील",        "lawyer"},   // native, but pairs with English
+    {"एक्टर",       "actor"},
+    {"सिंगर",       "singer"},
+    {"पॉलिटिशियन",  "politician"},
+    {"मिनिस्टर",    "minister"},
+    {"जर्नलिस्ट",   "journalist"},
+    {"रिपोर्टर",    "reporter"},
+    {"इन्वेस्टिगेटर","investigator"},
+
+    // ---- Work / money ----
+    {"जॉब",         "job"},
+    {"वर्क",        "work"},
+    {"करियर",       "career"},
+    {"पोजिशन",      "position"},
+    {"सैलरी",       "salary"},
+    {"इनकम",        "income"},
+    {"प्रॉफिट",     "profit"},
+    {"लॉस",         "loss"},
+    {"मनी",         "money"},
+    {"कैश",         "cash"},
+    {"क्रेडिट",     "credit"},
+    {"डेबिट",       "debit"},
+    {"बैंक",        "bank"},
+    {"लोन",         "loan"},
+    {"ईएमआई",      "EMI"},
+    {"टैक्स",       "tax"},
+    {"जीएसटी",      "GST"},
+    {"इन्वेस्टमेंट",  "investment"},
+    {"रिटर्न",      "return"},
+    {"बजट",         "budget"},
+
+    // ---- Home / travel ----
+    {"होम",         "home"},
+    {"रूम",         "room"},
+    {"किचन",        "kitchen"},
+    {"बाथरूम",     "bathroom"},
+    {"कार",         "car"},
+    {"बाइक",        "bike"},
+    {"बस",          "bus"},
+    {"ट्रेन",       "train"},
+    {"प्लेन",       "plane"},
+    {"फ्लाइट",      "flight"},
+    {"टिकट",        "ticket"},
+    {"ड्राइवर",     "driver"},
+    {"होटल",        "hotel"},
+    {"रेस्टोरेंट",  "restaurant"},
+    {"मॉल",         "mall"},
+
+    // ---- Health / body ----
+    {"हेल्थ",       "health"},
+    {"मेडिसिन",     "medicine"},
+    {"हॉस्पिटल",   "hospital"},
+    {"ट्रीटमेंट",   "treatment"},
+    {"इंजरी",       "injury"},
+    {"एक्सीडेंट",   "accident"},
+    {"इंसीडेंट",    "incident"},
+    {"डाइट",        "diet"},
+    {"एक्सरसाइज़",  "exercise"},
+    {"जिम",         "gym"},
+
+    // ---- Media / entertainment ----
+    {"मूवी",        "movie"},
+    {"फिल्म",       "film"},
+    {"सॉन्ग",       "song"},
+    {"म्यूजिक",     "music"},
+    {"शो",          "show"},
+    {"सीरीज",       "series"},
+    {"एपिसोड",      "episode"},
+    {"सीजन",        "season"},
+    {"स्क्रिप्ट",   "script"},
+    {"डायलॉग",      "dialogue"},
+    {"सीन",         "scene"},
+    {"कैरेक्टर",    "character"},
+    {"डायरेक्टर",   "director"},
+    {"प्रोड्यूसर",  "producer"},
+
+    // ---- Sports ----
+    {"गेम",         "game"},
+    {"स्पोर्ट",     "sport"},
+    {"मैच",         "match"},
+    {"टीम",         "team"},
+    {"प्लेयर",      "player"},
+    {"कोच",         "coach"},
+    {"क्रिकेट",     "cricket"},
+    {"फुटबॉल",     "football"},
+    {"सॉकर",        "soccer"},
+
+    // ---- Documentary / news / politics vocabulary ----
+    {"इंटरव्यू",    "interview"},
+    {"डिस्कशन",     "discussion"},
+    {"डिबेट",       "debate"},
+    {"ओपिनियन",     "opinion"},
+    {"स्टेटमेंट",   "statement"},
+    {"क्लेम",       "claim"},
+    {"एलिगेशन",     "allegation"},
+    {"एक्यूज़ेशन",   "accusation"},
+    {"रिसर्च",      "research"},
+    {"स्टडी",       "study"},
+    {"आर्टिकल",     "article"},
+    {"डॉक्युमेंट्री","documentary"},
+    {"डॉक्युमेंट",  "document"},
+    {"पेपर",        "paper"},
+    {"पॉलिसी",      "policy"},
+    {"गवर्नमेंट",   "government"},
+    {"गवर्नर",      "governor"},
+    {"पॉलिटिक्स",   "politics"},
+    {"पॉलिटिकल",    "political"},
+    {"पार्टी",      "party"},
+    {"इलेक्शन",     "election"},
+    {"वोट",         "vote"},
+    {"वोटर",        "voter"},
+    {"कैंपेन",      "campaign"},
+    {"प्रोटेस्ट",   "protest"},
+    {"रैली",        "rally"},
+    {"लॉ",          "law"},
+    {"कोर्ट",       "court"},
+    {"जज",          "judge"},
+    {"वर्डिक्ट",    "verdict"},
+    {"क्राइम",      "crime"},
+    {"क्रिमिनल",    "criminal"},
+    {"इन्वेस्टिगेशन","investigation"},
+    {"एविडेंस",     "evidence"},
+    {"प्रूफ",       "proof"},
+    {"विटनेस",      "witness"},
+    {"सस्पेक्ट",    "suspect"},
+    {"अरेस्ट",      "arrest"},
+    {"जेल",         "jail"},
+    {"प्रिजन",      "prison"},
+    {"मर्डर",       "murder"},
+    {"थेफ्ट",       "theft"},
+    {"रॉबरी",       "robbery"},
+    {"किडनैप",      "kidnap"},
+    {"किडनैपिंग",   "kidnapping"},
+    {"रेप",         "rape"},
+    {"अटैक",        "attack"},
+    {"वॉर",         "war"},
+    {"मिलिट्री",    "military"},
+    {"आर्मी",       "army"},
+    {"डिफेंस",      "defence"},
+    {"सिक्योरिटी",  "security"},
+    {"अथॉरिटी",     "authority"},
+    {"पावर",        "power"},
+    {"कंट्रोल",     "control"},
+    {"रूल",         "rule"},
+    {"राइट",        "right"},
+    {"राइट्स",      "rights"},
+    {"फ्रीडम",      "freedom"},
+    {"जस्टिस",      "justice"},
+
+    // ---- Business / commerce ----
+    {"कस्टम",       "custom"},
+    {"डिमांड",      "demand"},
+    {"सप्लाई",      "supply"},
+    {"मैन्युफैक्चरर","manufacturer"},
+    {"डीलर",        "dealer"},
+    {"रिटेल",       "retail"},
+    {"होलसेल",      "wholesale"},
+    {"ऑर्डर",       "order"},
+    {"डिलीवरी",     "delivery"},
+    {"पेमेंट",      "payment"},
+    {"रिफंड",       "refund"},
+
+    // ---- Common verbs (imperfective forms) ----
+    {"स्टार्ट",     "start"},
+    {"स्टॉप",       "stop"},
+    {"फिनिश",       "finish"},
+    {"कंप्लीट",     "complete"},
+    {"डन",          "done"},
+    {"ट्राई",       "try"},
+    {"टेस्ट",       "test"},
+    {"चेक",         "check"},
+    {"वेरिफाई",     "verify"},
+    {"कन्फर्म",     "confirm"},
+    {"रिजेक्ट",     "reject"},
+    {"एक्सेप्ट",    "accept"},
+    {"अप्रूव",      "approve"},
+    {"अलाउ",        "allow"},
+    {"डिनाई",       "deny"},
+    {"आस्क",        "ask"},
+    {"आन्सर",       "answer"},
+    {"रिप्लाई",     "reply"},
+    {"रिस्पॉन्स",   "response"},
+    {"रिस्पॉन्ड",   "respond"},
+    {"रिसीव",       "receive"},
+    {"सेंड",        "send"},
+    {"वॉच",         "watch"},
+    {"रीड",         "read"},
+    {"राइट",        "write"},   // "right" collides but we keep the noun above
+    {"साइन",        "sign"},
+    {"स्पीक",       "speak"},
+    {"टॉक",         "talk"},
+    {"डिस्कस",      "discuss"},
+    {"एक्सप्लेन",   "explain"},
+    {"अंडरस्टैंड",  "understand"},
+    {"रिमेंबर",     "remember"},
+    {"फॉरगेट",      "forget"},
+    {"नोटिस",       "notice"},
+    {"ऑब्जर्व",     "observe"},
+    {"अनाउंस",      "announce"},
+    {"रिवील",       "reveal"},
+    {"एक्सपोज़",    "expose"},
+    {"हाइड",        "hide"},
+    {"शो",          "show"},
+    {"डिस्प्ले",    "display"},
+    {"स्टडी",       "study"},
+    {"लर्न",        "learn"},
+    {"टीच",         "teach"},
+    {"ट्रेन",       "train"},
+    {"प्रैक्टिस",   "practice"},
+
+    // ---- Modifiers / discourse markers ----
+    {"वेरी",        "very"},
+    {"रियली",       "really"},
+    {"ऑनेस्टली",    "honestly"},
+    {"क्लियरली",    "clearly"},
+    {"क्लीयरली",    "clearly"},
+    {"डेफिनेटली",   "definitely"},
+    {"पॉसिबली",     "possibly"},
+    {"प्रोबेबली",   "probably"},
+    {"शायद",        "shayad"},   // native, keep
+    {"मीनिंग",      "meaning"},
+    {"मीन्स",       "means"},
+    {"बेसिकली",     "basically"},
+    {"एक्चुअली",    "actually"},
+    {"स्पेसिफिकली", "specifically"},
+    {"पर्टिक्युलरली","particularly"},
+    {"जनरली",       "generally"},
+    {"यूजुअली",     "usually"},
+    {"ऑफकोर्स",     "of course"},
+    {"शुअर",        "sure"},
+    {"मेबी",        "maybe"},
+    {"ऑलमोस्ट",     "almost"},
+    {"जस्ट",        "just"},
+    {"इवन",         "even"},
+    {"ओनली",        "only"},
+    {"बोथ",         "both"},
+    {"एनी",         "any"},
+    {"ऑल",          "all"},
+
+    // ---- Numbers as words (crop up in podcasts) ----
+    {"मिलियन",      "million"},
+    {"बिलियन",      "billion"},
+    {"ट्रिलियन",    "trillion"},
+    {"हंड्रेड",     "hundred"},
+    {"थाउज़ेंड",    "thousand"},
+    {"पर्सेंट",     "percent"},
+    {"परसेंट",      "percent"},
+    {"पर्सेंटेज",   "percentage"},
+
+    // ---- Common English pronouns/particles that surface phonetically ----
+    {"ओके",         "OK"},
+    {"येस",         "yes"},
+    {"नो",          "no"},
+    {"वो",          "vo"},    // native
+    {"बट",          "but"},
+    {"एंड",         "and"},
+    {"ऑर",          "or"},
+    {"सो",          "so"},
+    {"बिकॉज़",      "because"},
+    {"व्हाई",       "why"},
+    {"हाउ",         "how"},
+    {"व्हाट",       "what"},
+    {"व्हेन",       "when"},
+    {"व्हेयर",      "where"},
+    {"व्हो",        "who"},
+
+    // ---- Frequently-used tech + AI words (2024–2026 vocabulary) ----
+    {"चैटजीपीटी",   "ChatGPT"},
+    {"क्लाउड",      "cloud"},
+    {"डेटाबेस",    "database"},
+    {"डेटासेट",    "dataset"},
+    {"अल्गोरिथम",   "algorithm"},
+    {"एल्गोरिथम",   "algorithm"},
+    {"मॉडल",        "model"},
+    {"न्यूरल",     "neural"},
+    {"ट्रेनिंग",    "training"},
+    {"स्टार्टअप",   "startup"},
+    {"फाउंडर",      "founder"},
+    {"कोफाउंडर",    "co-founder"},
+    {"वेंचर",       "venture"},
+    {"इन्वेस्टर",   "investor"},
+    {"वीसी",        "VC"},
+    {"आईपीओ",      "IPO"},
+    {"स्टॉक",       "stock"},
+    {"मार्केट कैप", "market cap"},
+
+    // ---- Repeat coverage: variants of already-listed words ----
+    {"सिम्पल",      "simple"},
+    {"स्ट्रैट",     "straight"},
+    {"स्ट्रैइट",    "straight"},
+    {"सिचुऐशन",    "situation"},
+    {"कंडीशंस",    "conditions"},
+    {"क्वेश्चन",    "question"},
+    {"क्वेश्चंस",  "questions"},
+    {"आन्सर्स",     "answers"},
+    {"रिजल्ट्स",    "results"},
+    {"रीजन्स",     "reasons"},
+    {"मूवीज़",     "movies"},
+    {"शोज़",        "shows"},
+    {"सीरीज़",     "series"},
+
+    // ---- Two specific transliterator corrections (short vowel bugs) ----
+    // Native "इसमें" was rendering as "isamen"; force the schwa-deleted form.
+    {"इसमें",       "ismen"},
+    {"उसमें",       "usmen"},
+    {"जिसमें",      "jismen"},
+    {"किसमें",      "kismen"},
 };
 
 const std::unordered_map<std::string, const char*>& deva_loanword_map() {
@@ -532,6 +1015,20 @@ std::string transliterate_deva_word(const std::string& word) {
     return out;
 }
 
+void emit_deva_word(const std::string& buf, std::string& out) {
+    // Stage 1: hand-curated dictionary (wins if present).
+    if (const char* eng = deva_loanword_lookup(buf)) {
+        out.append(eng);
+        return;
+    }
+    // Stage 2: phonetic transliteration.
+    std::string phon = transliterate_deva_word(buf);
+    // Stage 3: fuzzy English recovery over the phonetic form.
+    std::string eng = recover_english(phon);
+    if (!eng.empty()) out.append(eng);
+    else               out.append(phon);
+}
+
 } // namespace
 
 std::string devanagari_to_latin(const std::string& text) {
@@ -554,21 +1051,13 @@ std::string devanagari_to_latin(const std::string& text) {
         }
         // End of a Devanagari run — flush.
         if (!buf.empty()) {
-            if (const char* eng = deva_loanword_lookup(buf))
-                out.append(eng);
-            else
-                out.append(transliterate_deva_word(buf));
+            emit_deva_word(buf, out);
             buf.clear();
         }
         // Emit the current non-Devanagari codepoint verbatim.
         encode_utf8(cp, out);
     }
-    if (!buf.empty()) {
-        if (const char* eng = deva_loanword_lookup(buf))
-            out.append(eng);
-        else
-            out.append(transliterate_deva_word(buf));
-    }
+    if (!buf.empty()) emit_deva_word(buf, out);
     return out;
 }
 

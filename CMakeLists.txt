@@ -101,9 +101,11 @@ add_library(crux_core STATIC
     src/media/cutter.cpp
     src/media/intro_assets.cpp
     src/media/outro_card.cpp
-    src/media/silence.cpp
+    src/media/text_util.cpp
     src/media/subtitle_render.cpp
     src/media/transliterate.cpp
+    src/media/english_words.cpp
+    src/media/english_recover.cpp
     src/out/manifest.cpp
     src/pipeline.cpp
     src/cli.cpp

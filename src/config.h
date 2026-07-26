@@ -87,7 +87,10 @@ struct Config {
     // Orig keeps the untouched stream. Requires captions to be fetched
     // (i.e. --detect fused|captions).
     bool subtitles = true;
-    int subtitle_size = 44;
+    // ASS font size in the 1920-px reference canvas — maps roughly 1:1 to
+    // output pixels. 108 reads big at phone-viewing distance (the "shouty
+    // caption" look viral reels use). Override with --subtitle-size.
+    int subtitle_size = 108;
     // Auto-transliterate Devanagari/Nastaliq caption text to Latin
     // (Hinglish/Roman-Urdu) so shorts stay readable on phones. English
     // captions pass through unchanged. --original-script disables it.

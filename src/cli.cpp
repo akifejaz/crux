@@ -80,8 +80,8 @@ CliResult parse_cli(int argc, char** argv) {
     app.add_flag("--no-subtitles", no_subtitles,
         "Disable burned-in subtitles on clips (916blur/916crop only)");
     app.add_option("--subtitle-size", c.subtitle_size,
-        "Subtitle font size in ASS units at 1920px canvas (default 44)")
-        ->check(CLI::Range(16, 96));
+        "Subtitle font size in ASS units at 1920px canvas (default 108, range 24..240)")
+        ->check(CLI::Range(24, 240));
     bool original_script = false;
     app.add_flag("--original-script", original_script,
         "Keep Devanagari/Nastaliq subtitles as-is (default: transliterate to Latin)");

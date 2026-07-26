@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <fstream>
 #include <sstream>
+#include <vector>
 
 namespace crux::media {
 
@@ -132,9 +133,14 @@ bool write_clip_ass(const CaptionDoc& doc,
     if (clip_end_sec <= clip_start_sec) return false;
 
     std::ostringstream body;
-    int emitted = 0;
+
+    // Collect every dialogue segment first, THEN emit — so we can chain
+    // overlapping cues (trim the earlier one to end when the next begins)
+    // and guarantee only one segment is on screen at any moment.  Without
+    // this, two overlapping VTT cues stack visually and blow past the
+    // "≤ 2 rows on screen" cap.
+    std::vector<SubtitleSegment> all;
     for (const auto& cue : doc.cues) {
-        // Keep any cue that overlaps the clip window at all.
         if (cue.end_sec <= clip_start_sec) continue;
         if (cue.start_sec >= clip_end_sec) continue;
         std::string source_text = romanize
@@ -143,26 +149,33 @@ bool write_clip_ass(const CaptionDoc& doc,
         std::string text = escape_ass_text(source_text);
         if (text.empty()) continue;
 
-        // Clamp to clip window, then shift so clip start → 0, then delay by
-        // the intro-card offset so subtitles appear when the clip content
-        // becomes visible (see cutter.cpp intro storyboard).
         double s = std::max(cue.start_sec, clip_start_sec) - clip_start_sec + time_offset_sec;
         double e = std::min(cue.end_sec,   clip_end_sec)   - clip_start_sec + time_offset_sec;
         if (e <= s) continue;
 
-        // Break long cues into sub-cues capped at max_words_per_cue; any
-        // sub-cue over words_per_line gets a balanced `\N`. Timing is
-        // divided proportionally across the sub-cues.
         auto segments = split_and_wrap(text, s, e,
                                        style.max_words_per_cue,
                                        style.words_per_line);
-        for (const auto& seg : segments) {
-            body << "Dialogue: 0,"
-                 << ass_timestamp(seg.start_sec) << ","
-                 << ass_timestamp(seg.end_sec)
-                 << ",Default,,0,0,0,," << seg.text << "\n";
-            ++emitted;
-        }
+        for (auto& seg : segments) all.push_back(std::move(seg));
+    }
+    // Sort by start time; chain overlaps so seg[i].end ≤ seg[i+1].start.
+    std::sort(all.begin(), all.end(),
+              [](const SubtitleSegment& a, const SubtitleSegment& b) {
+                  return a.start_sec < b.start_sec;
+              });
+    for (std::size_t i = 0; i + 1 < all.size(); ++i) {
+        if (all[i].end_sec > all[i + 1].start_sec)
+            all[i].end_sec = all[i + 1].start_sec;
+    }
+
+    int emitted = 0;
+    for (const auto& seg : all) {
+        if (seg.end_sec <= seg.start_sec) continue;   // collapsed to nothing
+        body << "Dialogue: 0,"
+             << ass_timestamp(seg.start_sec) << ","
+             << ass_timestamp(seg.end_sec)
+             << ",Default,,0,0,0,," << seg.text << "\n";
+        ++emitted;
     }
     if (emitted == 0) return false;
 
@@ -181,6 +194,10 @@ bool write_clip_ass(const CaptionDoc& doc,
         "PlayResX: " << style.play_res_x << "\n"
         "PlayResY: " << style.play_res_y << "\n"
         "ScaledBorderAndShadow: yes\n"
+        // WrapStyle 0 = smart wrapping. We keep it on so a rare wide 4-word
+        // line spills to a 2nd row instead of clipping — the acceptable
+        // edge case the user allowed.  Sub-cue temporal splitting keeps
+        // the common case at a single line.
         "WrapStyle: 0\n"
         "YCbCr Matrix: TV.709\n"
         "\n"

@@ -2,6 +2,7 @@
 
 #include "binres.h"
 #include "media/proc.h"
+#include "media/text_util.h"
 
 #include <spdlog/spdlog.h>
 
@@ -27,21 +28,6 @@ std::string fmt_followers(long long n) {
     if (n >= 1'000'000) return fmt(n / 1'000'000.0, "M");
     if (n >= 1'000)     return fmt(n / 1'000.0,     "K");
     return std::to_string(n);
-}
-
-// Truncates a UTF-8 string to at most `max_bytes`, walking back to a valid
-// codepoint boundary. Matches pipeline.cpp's helper to keep manifest and
-// outro card in sync.
-std::string utf8_truncate(std::string s, std::size_t max_bytes) {
-    if (s.size() <= max_bytes) return s;
-    s.resize(max_bytes);
-    while (!s.empty()) {
-        unsigned char c = static_cast<unsigned char>(s.back());
-        if (c < 0x80) break;
-        if ((c & 0xC0) == 0xC0) { s.pop_back(); break; }
-        s.pop_back();
-    }
-    return s;
 }
 
 // Escapes a string for drawtext's `text=` argument: colons and backslashes
@@ -149,7 +135,7 @@ std::optional<std::string> render_outro_card(
         subline += fmt_followers(video.channel_follower_count) + " subscribers";
     }
     const std::string cta   = "Watch full video";
-    const std::string title = utf8_truncate(video.title, 60);
+    const std::string title = text::utf8_truncate(video.title, 60);
 
     const bool have_banner = !assets.banner_path.empty();
     const bool have_avatar = !assets.avatar_path.empty();
