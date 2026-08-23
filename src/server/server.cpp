@@ -481,6 +481,10 @@ int main(int argc, char** argv) {
             for (auto it = g_job_order.rbegin(); it != g_job_order.rend(); ++it) {
                 auto j = g_jobs[*it];
                 seen.push_back(j->id);
+                // The API job id omits the "web-" prefix while its output
+                // directory includes it. Mark both forms as seen so the disk
+                // scan below does not list a freshly completed job twice.
+                seen.push_back(j->out_dir.filename().string());
                 RunMeta meta = read_run_meta(j->out_dir);
                 arr.push_back({
                     {"id", j->id},

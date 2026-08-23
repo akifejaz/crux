@@ -55,3 +55,19 @@ third_party/
 # Generated clips + run artifacts. The README documenting the layout ships.
 out/*
 !out/README.md
+
+# ---------------------------------------------------------------------
+# Test debris — doctest write_clip_ass tests emit these into whatever
+# CWD the test runner is invoked from. Regenerated every test run;
+# never committed.
+# ---------------------------------------------------------------------
+english_untouched.ass
+hindi_roman.ass
+hindi_user_example.ass
+/*.ass
+
+# ---------------------------------------------------------------------
+# Local Claude Code / editor state — skills, launch.json, agent chat,
+# per-user config. Machine-local, never pushed.
+# ---------------------------------------------------------------------
+.claude/

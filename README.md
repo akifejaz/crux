@@ -337,3 +337,11 @@ slices already-public streams.
 
 MIT — see [`LICENSE`](LICENSE). Bundled binaries (yt-dlp, ffmpeg) and
 libraries keep their own licenses; the LICENSE file lists them.
+
+---
+
+## Built by
+
+**[CognitionSync](https://cognitionsync.com)** - Applied AI, built for production.
+
+[cognitionsync@gmail.com](mailto:cognitionsync@gmail.com)
